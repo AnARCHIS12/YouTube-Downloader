@@ -24,6 +24,7 @@ import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.util.UUID
 import java.util.concurrent.Executors
+import java.util.concurrent.ExecutionException
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
 
@@ -133,6 +134,7 @@ class MainActivity : FlutterActivity() {
         val downloadThread = Thread {
             try {
                 initializeDownloader()
+                updateYoutubeDlWithTimeout()
 
                 val workingDir = File(
                     getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS),
@@ -156,6 +158,7 @@ class MainActivity : FlutterActivity() {
                 request.addOption("--extractor-retries", "3")
                 request.addOption("--concurrent-fragments", "1")
                 request.addOption("--no-mtime")
+                request.addOption("--restrict-filenames")
                 request.addOption("-o", "${workingDir.absolutePath}/%(title)s.%(ext)s")
                 addFormatOptions(request, quality)
 
@@ -236,6 +239,35 @@ class MainActivity : FlutterActivity() {
         initialized = true
     }
 
+    private fun updateYoutubeDlWithTimeout() {
+        sendProgress(2.0f, -1, "Verification de yt-dlp...")
+
+        val executor = Executors.newSingleThreadExecutor()
+        val future = executor.submit {
+            YoutubeDL.getInstance().updateYoutubeDL(
+                applicationContext,
+                YoutubeDL.UpdateChannel.STABLE
+            )
+        }
+
+        try {
+            future.get(45, TimeUnit.SECONDS)
+            sendProgress(3.0f, -1, "yt-dlp pret.")
+        } catch (error: TimeoutException) {
+            Log.w(logTag, "yt-dlp update timeout", error)
+            future.cancel(true)
+            sendProgress(3.0f, -1, "Mise a jour trop lente, demarrage avec yt-dlp inclus...")
+        } catch (error: ExecutionException) {
+            Log.w(logTag, "yt-dlp update failed", error.cause ?: error)
+            sendProgress(3.0f, -1, "Mise a jour impossible, demarrage avec yt-dlp inclus...")
+        } catch (error: Throwable) {
+            Log.w(logTag, "yt-dlp update failed", error)
+            sendProgress(3.0f, -1, "Mise a jour impossible, demarrage avec yt-dlp inclus...")
+        } finally {
+            executor.shutdownNow()
+        }
+    }
+
     private fun addFormatOptions(request: YoutubeDLRequest, quality: String) {
         if (quality == "Audio") {
             request.addOption("-x")
@@ -246,7 +278,7 @@ class MainActivity : FlutterActivity() {
         val height = quality.removeSuffix("p").toIntOrNull() ?: 1080
         request.addOption(
             "-f",
-            "bestvideo[height<=$height]+bestaudio/best[height<=$height]/best"
+            "best[height<=$height][ext=mp4]/best[height<=$height]/bestvideo[height<=$height]+bestaudio/best"
         )
         request.addOption("--merge-output-format", "mp4")
     }
@@ -272,6 +304,10 @@ class MainActivity : FlutterActivity() {
                 "Telechargement trop long ou bloque. Essaie une video plus courte ou une qualite plus basse.",
                 error
             )
+        } catch (error: ExecutionException) {
+            val cause = error.cause ?: error
+            Log.e(logTag, "yt-dlp execution failed", cause)
+            throw cause
         } finally {
             executor.shutdownNow()
         }
