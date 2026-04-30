@@ -22,6 +22,10 @@ import io.flutter.plugin.common.MethodChannel
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
+import java.util.UUID
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 
 class MainActivity : FlutterActivity() {
     private val logTag = "YoutubeDownloader"
@@ -144,6 +148,8 @@ class MainActivity : FlutterActivity() {
                 val request = YoutubeDLRequest(url)
                 request.addOption("--no-playlist")
                 request.addOption("--newline")
+                request.addOption("--force-ipv4")
+                request.addOption("--geo-bypass")
                 request.addOption("--socket-timeout", "25")
                 request.addOption("--retries", "3")
                 request.addOption("--fragment-retries", "3")
@@ -155,9 +161,8 @@ class MainActivity : FlutterActivity() {
 
                 sendProgress(3.0f, -1, "Initialisation de yt-dlp...")
 
-                val response = YoutubeDL.getInstance().execute(request) { progress, etaInSeconds, line ->
-                    sendProgress(progress, etaInSeconds, line.ifBlank { "Telechargement en cours..." })
-                }
+                val processId = UUID.randomUUID().toString()
+                val response = executeWithTimeout(request, processId)
                 val publishedFiles = publishCompletedFiles(
                     workingDir,
                     filesBeforeDownload,
@@ -241,9 +246,35 @@ class MainActivity : FlutterActivity() {
         val height = quality.removeSuffix("p").toIntOrNull() ?: 1080
         request.addOption(
             "-f",
-            "bestvideo[height<=$height][ext=mp4]+bestaudio[ext=m4a]/best[height<=$height][ext=mp4]/best"
+            "bestvideo[height<=$height]+bestaudio/best[height<=$height]/best"
         )
         request.addOption("--merge-output-format", "mp4")
+    }
+
+    private fun executeWithTimeout(
+        request: YoutubeDLRequest,
+        processId: String
+    ): com.yausername.youtubedl_android.YoutubeDLResponse {
+        val executor = Executors.newSingleThreadExecutor()
+        val future = executor.submit<com.yausername.youtubedl_android.YoutubeDLResponse> {
+            YoutubeDL.getInstance().execute(request, processId) { progress, etaInSeconds, line ->
+                sendProgress(progress, etaInSeconds, line.ifBlank { "Telechargement en cours..." })
+            }
+        }
+
+        return try {
+            future.get(12, TimeUnit.MINUTES)
+        } catch (error: TimeoutException) {
+            Log.e(logTag, "yt-dlp timeout", error)
+            YoutubeDL.getInstance().destroyProcessById(processId)
+            future.cancel(true)
+            throw IllegalStateException(
+                "Telechargement trop long ou bloque. Essaie une video plus courte ou une qualite plus basse.",
+                error
+            )
+        } finally {
+            executor.shutdownNow()
+        }
     }
 
     private fun sendProgress(progress: Float, etaInSeconds: Long, message: String) {
