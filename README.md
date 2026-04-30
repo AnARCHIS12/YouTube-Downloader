@@ -133,18 +133,15 @@ Depuis GitHub, l'installateur peut aussi être généré automatiquement :
 3. Gardez le tag `v1.0.0`.
 4. Le workflow compile `YouTubeDownloaderSetup.exe` et l'ajoute à la release GitHub.
 
-### Mise à jour yt-dlp
+## Mise à jour yt-dlp
 
 Si YouTube change quelque chose et que les téléchargements échouent :
 
 ```bash
 python -m pip install -U yt-dlp
+```
 
-
-
-
-
-### Version mobile Flutter
+## Version mobile Flutter
 
 La version mobile Android est dans :
 
@@ -170,7 +167,7 @@ Downloads/YouTube Downloader
 
 Si vous choisissez un autre dossier dans l'application, Android garde ce choix pour les prochains téléchargements.
 
-### Compiler l'APK Android
+## Compiler l'APK Android
 
 Installez d'abord Flutter et Android Studio, puis vérifiez que Flutter voit bien Android :
 
@@ -206,10 +203,8 @@ Le fichier sera ici :
 mobile/build/app/outputs/flutter-apk/app-debug.apk
 ```
 
-### Installer sur un téléphone Android
+## Installer sur un téléphone Android
 
 Copiez `app-release.apk` sur le téléphone, ouvrez-le, puis autorisez l'installation depuis une source inconnue si Android le demande.
 
 Au premier téléchargement, gardez Internet activé : l'application essaie de mettre `yt-dlp` à jour pour éviter l'erreur `yt-dlp version is old`.
-
-
