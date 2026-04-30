@@ -133,7 +133,7 @@ Depuis GitHub, l'installateur peut aussi être généré automatiquement :
 3. Gardez le tag `v1.0.0`.
 4. Le workflow compile `YouTubeDownloaderSetup.exe` et l'ajoute à la release GitHub.
 
-## Mise à jour yt-dlp
+### Mise à jour yt-dlp
 
 Si YouTube change quelque chose et que les téléchargements échouent :
 
@@ -141,7 +141,10 @@ Si YouTube change quelque chose et que les téléchargements échouent :
 python -m pip install -U yt-dlp
 
 
-## Version mobile Flutter
+
+
+
+### Version mobile Flutter
 
 La version mobile Android est dans :
 
