@@ -210,4 +210,3 @@ Copiez `app-release.apk` sur le téléphone, ouvrez-le, puis autorisez l'install
 Au premier téléchargement, gardez Internet activé : l'application essaie de mettre `yt-dlp` à jour pour éviter l'erreur `yt-dlp version is old`.
 
 
-```
