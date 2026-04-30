@@ -9,7 +9,7 @@ Application Flutter pour la version Android de YouTube Downloader.
 - Choix du dossier de sortie avec le selecteur de dossier Android.
 - Logo d'application partage avec la version desktop.
 - Telechargement Android branche via `youtubedl-android`, `yt-dlp` et `ffmpeg`.
-- Mise a jour automatique de `yt-dlp` avant le telechargement quand Internet est disponible.
+- Affichage du detail complet si Android ou `yt-dlp` renvoie une erreur.
 
 ## Creer les fichiers natifs Android/iOS
 

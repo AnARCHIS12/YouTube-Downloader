@@ -205,7 +205,7 @@ class MainActivity : FlutterActivity() {
                 val message = error.message ?: "Erreur de telechargement."
                 mainHandler.post {
                     try {
-                        result.error(errorCode, message, error.toString())
+                        result.error(errorCode, message, downloadErrorDetails(error))
                     } catch (replyError: Throwable) {
                         Log.e(logTag, "Unable to send download error", replyError)
                     }
@@ -330,6 +330,26 @@ class MainActivity : FlutterActivity() {
         } catch (error: Throwable) {
             Log.w(logTag, "Unable to schedule progress", error)
         }
+    }
+
+    private fun downloadErrorDetails(error: Throwable): String {
+        val chain = mutableListOf<String>()
+        var current: Throwable? = error
+
+        while (current != null) {
+            val message = current.message?.trim()
+            val label = current::class.java.simpleName.ifBlank { current::class.java.name }
+            chain.add(
+                if (message.isNullOrEmpty()) {
+                    label
+                } else {
+                    "$label: $message"
+                }
+            )
+            current = current.cause
+        }
+
+        return chain.joinToString("\nCaused by: ")
     }
 
     private fun publishCompletedFiles(

@@ -157,7 +157,7 @@ Fonctions mobiles :
 - choisir la qualité : `360p`, `480p`, `720p`, `1080p`, `1440p`, `2160p` ou `Audio` ;
 - choisir le dossier de sortie avec le sélecteur Android ;
 - télécharger et fusionner audio/vidéo avec `ffmpeg` intégré ;
-- mettre à jour `yt-dlp` automatiquement avant le téléchargement quand Internet est disponible.
+- afficher le détail complet si Android ou `yt-dlp` renvoie une erreur.
 
 Par défaut, les fichiers sortent dans :
 
@@ -205,6 +205,6 @@ mobile/build/app/outputs/flutter-apk/app-debug.apk
 
 ## Installer sur un téléphone Android
 
-Copiez `app-release.apk` sur le téléphone, ouvrez-le, puis autorisez l'installation depuis une source inconnue si Android le demande.
+Copiez `app-release.apk` sur le téléphone, ouvrez-le, puis autorisez l'installation depuis une source inconnue si Android le demande. Si une ancienne APK est deja installee, desinstallez-la puis installez la nouvelle version.
 
-Au premier téléchargement, gardez Internet activé : l'application essaie de mettre `yt-dlp` à jour pour éviter l'erreur `yt-dlp version is old`.
+Si le telephone affiche une erreur de telechargement, l'application montre maintenant le detail technique dans la zone **Activite**. Ce message permet de savoir si le probleme vient du lien YouTube, du reseau, du dossier choisi ou de `yt-dlp`.

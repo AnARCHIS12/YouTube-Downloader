@@ -81,10 +81,15 @@ class DownloadEngine {
         message: 'Le telechargement reel est disponible sur Android.',
       );
     } on PlatformException catch (error) {
+      final String message = error.message ?? 'Erreur pendant le telechargement.';
+      final String? details = error.details?.toString().trim();
+
       return DownloadResult(
         status: DownloadStatus.failed,
         progress: 0,
-        message: error.message ?? 'Erreur pendant le telechargement.',
+        message: details == null || details.isEmpty || details == message
+            ? message
+            : '$message\n\nDetails: $details',
       );
     }
   }
