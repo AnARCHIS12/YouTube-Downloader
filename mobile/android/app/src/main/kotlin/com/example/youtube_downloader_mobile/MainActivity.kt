@@ -65,9 +65,13 @@ class MainActivity : FlutterActivity() {
         }
 
         try {
+            val permissionFlags = data.flags and (
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                    Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                )
             contentResolver.takePersistableUriPermission(
                 uri,
-                Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                permissionFlags
             )
             preferences().edit()
                 .putString("destination_uri", uri.toString())
@@ -136,6 +140,7 @@ class MainActivity : FlutterActivity() {
                     ?.map { it.absolutePath }
                     ?.toSet()
                     .orEmpty()
+                val downloadStartedAt = System.currentTimeMillis()
 
                 val request = YoutubeDLRequest(url)
                 request.addOption("--no-playlist")
@@ -148,7 +153,11 @@ class MainActivity : FlutterActivity() {
                 val response = YoutubeDL.getInstance().execute(request) { progress, etaInSeconds, line ->
                     sendProgress(progress, etaInSeconds, line.ifBlank { "Telechargement en cours..." })
                 }
-                val publishedFiles = publishCompletedFiles(workingDir, filesBeforeDownload)
+                val publishedFiles = publishCompletedFiles(
+                    workingDir,
+                    filesBeforeDownload,
+                    downloadStartedAt
+                )
                 val destination = destinationLabel()
                 val publishedMessage = if (publishedFiles.isEmpty()) {
                     "Telechargement termine dans ${workingDir.absolutePath}"
@@ -268,11 +277,15 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-    private fun publishCompletedFiles(workingDir: File, filesBeforeDownload: Set<String>): List<String> {
+    private fun publishCompletedFiles(
+        workingDir: File,
+        filesBeforeDownload: Set<String>,
+        downloadStartedAt: Long
+    ): List<String> {
         val completedFiles = workingDir.listFiles()
             ?.filter { file ->
                 file.isFile &&
-                    file.absolutePath !in filesBeforeDownload &&
+                    (file.absolutePath !in filesBeforeDownload || file.lastModified() >= downloadStartedAt - 5000) &&
                     !file.name.endsWith(".part") &&
                     !file.name.endsWith(".ytdl")
             }
