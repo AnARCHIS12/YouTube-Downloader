@@ -1,7 +1,7 @@
 name: youtube_downloader_mobile
 description: Mobile Flutter prototype for YouTube Downloader.
 publish_to: "none"
-version: 1.0.0+1
+version: 1.0.1+2
 
 environment:
   sdk: ">=3.4.0 <4.0.0"
