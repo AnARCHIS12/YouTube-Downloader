@@ -23,10 +23,12 @@ import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.util.UUID
+import java.util.concurrent.CancellationException
 import java.util.concurrent.Executors
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
+import java.util.concurrent.atomic.AtomicLong
 
 class MainActivity : FlutterActivity() {
     private val logTag = "YoutubeDownloader"
@@ -134,7 +136,6 @@ class MainActivity : FlutterActivity() {
         val downloadThread = Thread {
             try {
                 initializeDownloader()
-                updateYoutubeDlWithTimeout()
 
                 val workingDir = File(
                     getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS),
@@ -159,10 +160,11 @@ class MainActivity : FlutterActivity() {
                 request.addOption("--concurrent-fragments", "1")
                 request.addOption("--no-mtime")
                 request.addOption("--restrict-filenames")
+                request.addOption("--no-check-certificate")
                 request.addOption("-o", "${workingDir.absolutePath}/%(title)s.%(ext)s")
                 addFormatOptions(request, quality)
 
-                sendProgress(3.0f, -1, "Initialisation de yt-dlp...")
+                sendProgress(3.0f, -1, "Analyse du lien YouTube...")
 
                 val processId = UUID.randomUUID().toString()
                 val response = executeWithTimeout(request, processId)
@@ -239,35 +241,6 @@ class MainActivity : FlutterActivity() {
         initialized = true
     }
 
-    private fun updateYoutubeDlWithTimeout() {
-        sendProgress(2.0f, -1, "Verification de yt-dlp...")
-
-        val executor = Executors.newSingleThreadExecutor()
-        val future = executor.submit {
-            YoutubeDL.getInstance().updateYoutubeDL(
-                applicationContext,
-                YoutubeDL.UpdateChannel.STABLE
-            )
-        }
-
-        try {
-            future.get(45, TimeUnit.SECONDS)
-            sendProgress(3.0f, -1, "yt-dlp pret.")
-        } catch (error: TimeoutException) {
-            Log.w(logTag, "yt-dlp update timeout", error)
-            future.cancel(true)
-            sendProgress(3.0f, -1, "Mise a jour trop lente, demarrage avec yt-dlp inclus...")
-        } catch (error: ExecutionException) {
-            Log.w(logTag, "yt-dlp update failed", error.cause ?: error)
-            sendProgress(3.0f, -1, "Mise a jour impossible, demarrage avec yt-dlp inclus...")
-        } catch (error: Throwable) {
-            Log.w(logTag, "yt-dlp update failed", error)
-            sendProgress(3.0f, -1, "Mise a jour impossible, demarrage avec yt-dlp inclus...")
-        } finally {
-            executor.shutdownNow()
-        }
-    }
-
     private fun addFormatOptions(request: YoutubeDLRequest, quality: String) {
         if (quality == "Audio") {
             request.addOption("-x")
@@ -278,7 +251,7 @@ class MainActivity : FlutterActivity() {
         val height = quality.removeSuffix("p").toIntOrNull() ?: 1080
         request.addOption(
             "-f",
-            "best[height<=$height][ext=mp4]/best[height<=$height]/bestvideo[height<=$height]+bestaudio/best"
+            "best[height<=$height][ext=mp4]/best[height<=$height]/bestvideo[height<=$height][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=$height]+bestaudio/best"
         )
         request.addOption("--merge-output-format", "mp4")
     }
@@ -288,20 +261,42 @@ class MainActivity : FlutterActivity() {
         processId: String
     ): com.yausername.youtubedl_android.YoutubeDLResponse {
         val executor = Executors.newSingleThreadExecutor()
+        val watchdog = Executors.newSingleThreadScheduledExecutor()
+        val lastActivityAt = AtomicLong(System.currentTimeMillis())
         val future = executor.submit<com.yausername.youtubedl_android.YoutubeDLResponse> {
             YoutubeDL.getInstance().execute(request, processId) { progress, etaInSeconds, line ->
+                lastActivityAt.set(System.currentTimeMillis())
                 sendProgress(progress, etaInSeconds, line.ifBlank { "Telechargement en cours..." })
             }
         }
 
+        watchdog.scheduleAtFixedRate(
+            {
+                val quietForMs = System.currentTimeMillis() - lastActivityAt.get()
+                if (quietForMs > 90_000L && !future.isDone) {
+                    Log.e(logTag, "yt-dlp stalled for ${quietForMs}ms")
+                    YoutubeDL.getInstance().destroyProcessById(processId)
+                    future.cancel(true)
+                }
+            },
+            30,
+            10,
+            TimeUnit.SECONDS
+        )
+
         return try {
-            future.get(12, TimeUnit.MINUTES)
+            future.get(30, TimeUnit.MINUTES)
+        } catch (error: CancellationException) {
+            throw IllegalStateException(
+                "Aucune progression recue pendant 90 secondes. Verifie le reseau ou essaie une autre qualite.",
+                error
+            )
         } catch (error: TimeoutException) {
             Log.e(logTag, "yt-dlp timeout", error)
             YoutubeDL.getInstance().destroyProcessById(processId)
             future.cancel(true)
             throw IllegalStateException(
-                "Telechargement trop long ou bloque. Essaie une video plus courte ou une qualite plus basse.",
+                "Telechargement trop long. Essaie une video plus courte ou une qualite plus basse.",
                 error
             )
         } catch (error: ExecutionException) {
@@ -309,6 +304,7 @@ class MainActivity : FlutterActivity() {
             Log.e(logTag, "yt-dlp execution failed", cause)
             throw cause
         } finally {
+            watchdog.shutdownNow()
             executor.shutdownNow()
         }
     }
