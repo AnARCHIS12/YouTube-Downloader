@@ -10,12 +10,13 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.DocumentsContract
 import android.provider.MediaStore
+import android.util.Log
 import com.yausername.ffmpeg.FFmpeg
 import com.yausername.youtubedl_android.YoutubeDL
-import com.yausername.youtubedl_android.YoutubeDLRequest
 import com.yausername.youtubedl_android.YoutubeDLException
-import io.flutter.embedding.engine.FlutterEngine
+import com.yausername.youtubedl_android.YoutubeDLRequest
 import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
@@ -23,6 +24,7 @@ import java.io.FileInputStream
 import java.io.FileOutputStream
 
 class MainActivity : FlutterActivity() {
+    private val logTag = "YoutubeDownloader"
     private val destinationRequestCode = 4201
     private val mainHandler = Handler(Looper.getMainLooper())
     private var initialized = false
@@ -62,16 +64,24 @@ class MainActivity : FlutterActivity() {
             return
         }
 
-        contentResolver.takePersistableUriPermission(
-            uri,
-            Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-        )
-        preferences().edit()
-            .putString("destination_uri", uri.toString())
-            .putString("destination_label", readableName(uri))
-            .apply()
-
-        result?.success(destinationLabel())
+        try {
+            contentResolver.takePersistableUriPermission(
+                uri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            )
+            preferences().edit()
+                .putString("destination_uri", uri.toString())
+                .putString("destination_label", readableName(uri))
+                .apply()
+            result?.success(destinationLabel())
+        } catch (error: Throwable) {
+            Log.e(logTag, "Destination selection failed", error)
+            result?.error(
+                "destination_error",
+                "Impossible d'utiliser ce dossier. Choisis un autre dossier.",
+                error.toString()
+            )
+        }
     }
 
     private fun pickDestination(result: MethodChannel.Result) {
@@ -89,7 +99,18 @@ class MainActivity : FlutterActivity() {
                     Intent.FLAG_GRANT_PREFIX_URI_PERMISSION
             )
         }
-        startActivityForResult(intent, destinationRequestCode)
+
+        try {
+            startActivityForResult(intent, destinationRequestCode)
+        } catch (error: Throwable) {
+            pendingDestinationResult = null
+            Log.e(logTag, "Unable to open folder picker", error)
+            result.error(
+                "destination_picker_error",
+                "Impossible d'ouvrir le selecteur de dossier Android.",
+                error.toString()
+            )
+        }
     }
 
     private fun startDownload(call: MethodCall, result: MethodChannel.Result) {
@@ -101,7 +122,7 @@ class MainActivity : FlutterActivity() {
             return
         }
 
-        Thread {
+        val downloadThread = Thread {
             try {
                 initializeDownloader()
                 updateYoutubeDlIfPossible()
@@ -111,7 +132,10 @@ class MainActivity : FlutterActivity() {
                     "YouTube Downloader"
                 )
                 workingDir.mkdirs()
-                val filesBeforeDownload = workingDir.listFiles()?.map { it.absolutePath }?.toSet().orEmpty()
+                val filesBeforeDownload = workingDir.listFiles()
+                    ?.map { it.absolutePath }
+                    ?.toSet()
+                    .orEmpty()
 
                 val request = YoutubeDLRequest(url)
                 request.addOption("--no-playlist")
@@ -133,34 +157,53 @@ class MainActivity : FlutterActivity() {
                 }
 
                 mainHandler.post {
-                    result.success(
-                        mapOf(
-                            "message" to publishedMessage,
-                            "progress" to 1.0,
-                            "outputDir" to destination,
-                            "files" to publishedFiles,
-                            "output" to response.out
+                    try {
+                        result.success(
+                            mapOf(
+                                "message" to publishedMessage,
+                                "progress" to 1.0,
+                                "outputDir" to destination,
+                                "files" to publishedFiles,
+                                "output" to response.out
+                            )
                         )
-                    )
+                    } catch (error: Throwable) {
+                        Log.e(logTag, "Unable to send download result", error)
+                    }
                 }
-            } catch (error: YoutubeDLException) {
-                mainHandler.post {
-                    result.error(
-                        "ytdlp_error",
-                        error.message ?: "Erreur yt-dlp.",
-                        error.toString()
-                    )
+            } catch (error: Throwable) {
+                Log.e(logTag, "Download failed", error)
+                val errorCode = if (error is YoutubeDLException) {
+                    "ytdlp_error"
+                } else {
+                    "download_error"
                 }
-            } catch (error: Exception) {
+                val message = error.message ?: "Erreur de telechargement."
                 mainHandler.post {
-                    result.error(
-                        "download_error",
-                        error.message ?: "Erreur de telechargement.",
-                        error.toString()
-                    )
+                    try {
+                        result.error(errorCode, message, error.toString())
+                    } catch (replyError: Throwable) {
+                        Log.e(logTag, "Unable to send download error", replyError)
+                    }
                 }
             }
-        }.start()
+        }
+
+        downloadThread.setUncaughtExceptionHandler { _, error ->
+            Log.e(logTag, "Uncaught download crash", error)
+            mainHandler.post {
+                try {
+                    result.error(
+                        "download_crash",
+                        error.message ?: "Le telechargement a plante.",
+                        error.toString()
+                    )
+                } catch (replyError: Throwable) {
+                    Log.e(logTag, "Unable to send crash error", replyError)
+                }
+            }
+        }
+        downloadThread.start()
     }
 
     @Synchronized
@@ -181,7 +224,8 @@ class MainActivity : FlutterActivity() {
                 applicationContext,
                 YoutubeDL.UpdateChannel.STABLE
             )
-        } catch (_: Exception) {
+        } catch (error: Throwable) {
+            Log.w(logTag, "yt-dlp update failed", error)
             sendProgress(2.0f, -1, "Mise a jour yt-dlp impossible, essai avec la version incluse...")
         }
     }
@@ -204,15 +248,23 @@ class MainActivity : FlutterActivity() {
     private fun sendProgress(progress: Float, etaInSeconds: Long, message: String) {
         val normalizedProgress = (progress / 100.0f).coerceIn(0.0f, 1.0f)
 
-        mainHandler.post {
-            downloadChannel.invokeMethod(
-                "downloadProgress",
-                mapOf(
-                    "progress" to normalizedProgress.toDouble(),
-                    "eta" to etaInSeconds,
-                    "message" to message
-                )
-            )
+        try {
+            mainHandler.post {
+                try {
+                    downloadChannel.invokeMethod(
+                        "downloadProgress",
+                        mapOf(
+                            "progress" to normalizedProgress.toDouble(),
+                            "eta" to etaInSeconds,
+                            "message" to message
+                        )
+                    )
+                } catch (error: Throwable) {
+                    Log.w(logTag, "Unable to send progress", error)
+                }
+            }
+        } catch (error: Throwable) {
+            Log.w(logTag, "Unable to schedule progress", error)
         }
     }
 
@@ -229,8 +281,14 @@ class MainActivity : FlutterActivity() {
         return completedFiles.mapNotNull { file ->
             try {
                 publishFile(file)
-            } catch (_: Exception) {
-                null
+            } catch (error: Throwable) {
+                Log.w(logTag, "Unable to publish file, trying fallback", error)
+                try {
+                    publishFileWithoutPickedDirectory(file)
+                } catch (fallbackError: Throwable) {
+                    Log.e(logTag, "Unable to publish file with fallback", fallbackError)
+                    null
+                }
             }
         }
     }
@@ -238,9 +296,22 @@ class MainActivity : FlutterActivity() {
     private fun publishFile(sourceFile: File): String {
         val selectedDestination = selectedDestinationUri()
         if (selectedDestination != null) {
-            return publishFileToPickedDirectory(sourceFile, selectedDestination)
+            return try {
+                publishFileToPickedDirectory(sourceFile, selectedDestination)
+            } catch (error: Throwable) {
+                Log.w(logTag, "Picked directory failed, clearing it", error)
+                preferences().edit()
+                    .remove("destination_uri")
+                    .remove("destination_label")
+                    .apply()
+                publishFileWithoutPickedDirectory(sourceFile)
+            }
         }
 
+        return publishFileWithoutPickedDirectory(sourceFile)
+    }
+
+    private fun publishFileWithoutPickedDirectory(sourceFile: File): String {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             publishFileWithMediaStore(sourceFile)
         } else {
@@ -277,15 +348,20 @@ class MainActivity : FlutterActivity() {
         val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
             ?: throw IllegalStateException("Impossible de creer le fichier public.")
 
-        resolver.openOutputStream(uri)?.use { output ->
-            FileInputStream(sourceFile).use { input -> input.copyTo(output) }
-        } ?: throw IllegalStateException("Impossible d'ecrire le fichier public.")
+        try {
+            resolver.openOutputStream(uri)?.use { output ->
+                FileInputStream(sourceFile).use { input -> input.copyTo(output) }
+            } ?: throw IllegalStateException("Impossible d'ecrire le fichier public.")
 
-        values.clear()
-        values.put(MediaStore.Downloads.IS_PENDING, 0)
-        resolver.update(uri, values, null, null)
+            values.clear()
+            values.put(MediaStore.Downloads.IS_PENDING, 0)
+            resolver.update(uri, values, null, null)
 
-        return "Download/YouTube Downloader/${sourceFile.name}"
+            return "Download/YouTube Downloader/${sourceFile.name}"
+        } catch (error: Throwable) {
+            resolver.delete(uri, null, null)
+            throw error
+        }
     }
 
     private fun publishFileDirectly(sourceFile: File): String {
@@ -315,7 +391,12 @@ class MainActivity : FlutterActivity() {
 
     private fun selectedDestinationUri(): Uri? {
         val rawUri = preferences().getString("destination_uri", null) ?: return null
-        return Uri.parse(rawUri)
+        return try {
+            Uri.parse(rawUri)
+        } catch (error: Throwable) {
+            Log.w(logTag, "Invalid stored destination URI", error)
+            null
+        }
     }
 
     private fun destinationLabel(): String {
@@ -324,8 +405,13 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun readableName(uri: Uri): String {
-        val treeId = DocumentsContract.getTreeDocumentId(uri)
-        return treeId.substringAfter(':', treeId).ifBlank { "Dossier selectionne" }
+        return try {
+            val treeId = DocumentsContract.getTreeDocumentId(uri)
+            treeId.substringAfter(':', treeId).ifBlank { "Dossier selectionne" }
+        } catch (error: Throwable) {
+            Log.w(logTag, "Unable to read folder name", error)
+            "Dossier selectionne"
+        }
     }
 
     private fun preferences() = getSharedPreferences("downloads", MODE_PRIVATE)
