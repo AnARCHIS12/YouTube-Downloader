@@ -8,14 +8,26 @@ $InstallerExe = Join-Path $PackageDir "YouTubeDownloaderSetup.exe"
 
 Set-Location $RootDir
 
-foreach ($command in @("py", "ffmpeg", "ffprobe")) {
+foreach ($command in @("ffmpeg", "ffprobe")) {
     if (-not (Get-Command $command -ErrorAction SilentlyContinue)) {
         throw "$command introuvable. Installe-le ou ajoute-le au PATH avant de compiler Windows."
     }
 }
 
-py -m pip install -r requirements-build.txt
-py -m PyInstaller --clean --noconfirm YouTubeDownloader.spec
+$python = Get-Command "py" -ErrorAction SilentlyContinue
+if ($python) {
+    & py -m pip install -r requirements-build.txt
+    & py -m PyInstaller --clean --noconfirm YouTubeDownloader.spec
+}
+else {
+    $python = Get-Command "python" -ErrorAction SilentlyContinue
+    if (-not $python) {
+        throw "Python introuvable. Installe Python 3.10+ ou ajoute-le au PATH."
+    }
+
+    & python -m pip install -r requirements-build.txt
+    & python -m PyInstaller --clean --noconfirm YouTubeDownloader.spec
+}
 
 New-Item -ItemType Directory -Force -Path $PackageDir | Out-Null
 

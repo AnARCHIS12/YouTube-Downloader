@@ -125,6 +125,13 @@ dist\YouTubeDownloader.exe
 dist\packages\YouTubeDownloaderSetup.exe
 ```
 
+Depuis GitHub, l'installateur peut aussi être généré automatiquement :
+
+1. Ouvrez l'onglet **Actions** du dépôt.
+2. Lancez **Build Windows installer**.
+3. Gardez le tag `v1.0.0`.
+4. Le workflow compile `YouTubeDownloaderSetup.exe` et l'ajoute à la release GitHub.
+
 ## Mise à jour yt-dlp
 
 Si YouTube change quelque chose et que les téléchargements échouent :
