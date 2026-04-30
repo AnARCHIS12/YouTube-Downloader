@@ -7,3 +7,10 @@ dist/
 *.mp4
 *.mkv
 *.webm
+mobile/.dart_tool/
+mobile/.flutter-plugins
+mobile/.flutter-plugins-dependencies
+mobile/build/
+mobile/android/.gradle/
+mobile/android/local.properties
+mobile/**/GeneratedPluginRegistrant.*

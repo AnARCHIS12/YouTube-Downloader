@@ -5,13 +5,14 @@
 </p>
 
 <p align="center">
-  Une application de bureau CustomTkinter au style YouTube moderne pour télécharger des vidéos avec <code>yt-dlp</code>. Les paquets compilés embarquent aussi <code>ffmpeg</code>.
+  Une application de bureau CustomTkinter au style YouTube moderne pour télécharger des vidéos avec <code>yt-dlp</code>. Le projet inclut aussi une version mobile Android en Flutter. Les paquets compilés embarquent <code>ffmpeg</code>, et l'APK Android utilise <code>yt-dlp</code> + <code>ffmpeg</code> intégrés.
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/YouTube-Downloader-FF0033?style=for-the-badge&logo=youtube&logoColor=white" alt="YouTube Downloader" />
   <br />
   <img src="https://img.shields.io/badge/Python-3.10+-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python 3.10+" />
+  <img src="https://img.shields.io/badge/Flutter-Android-02569B?style=flat-square&logo=flutter&logoColor=white" alt="Flutter Android" />
   <img src="https://img.shields.io/badge/yt--dlp-2026.03.17-FF0033?style=flat-square&logo=youtube&logoColor=white" alt="yt-dlp" />
   <img src="https://img.shields.io/badge/CustomTkinter-UI-111111?style=flat-square" alt="CustomTkinter" />
   <img src="https://img.shields.io/badge/ffmpeg-bundled-007808?style=flat-square&logo=ffmpeg&logoColor=white" alt="ffmpeg bundled" />
@@ -19,7 +20,7 @@
 </p>
 
 <p align="center">
-  <strong>Interface plein écran rouge/noir inspirée de YouTube.</strong>
+  <strong>Interface plein écran rouge/noir sur bureau, avec une app Android Flutter assortie.</strong>
 </p>
 
 ## Prérequis pour lancer le code source
@@ -131,6 +132,74 @@ Depuis GitHub, l'installateur peut aussi être généré automatiquement :
 2. Lancez **Build Windows installer**.
 3. Gardez le tag `v1.0.0`.
 4. Le workflow compile `YouTubeDownloaderSetup.exe` et l'ajoute à la release GitHub.
+
+## Version mobile Flutter
+
+La version mobile Android est dans :
+
+```text
+mobile/
+```
+
+Elle contient une application Flutter rouge/noir avec le logo YouTube Downloader. Sur Android, le téléchargement réel est branché avec `youtubedl-android`, `yt-dlp` et `ffmpeg`.
+
+Fonctions mobiles :
+
+- coller un lien YouTube ;
+- choisir la qualité : `360p`, `480p`, `720p`, `1080p`, `1440p`, `2160p` ou `Audio` ;
+- choisir le dossier de sortie avec le sélecteur Android ;
+- télécharger et fusionner audio/vidéo avec `ffmpeg` intégré ;
+- mettre à jour `yt-dlp` automatiquement avant le téléchargement quand Internet est disponible.
+
+Par défaut, les fichiers sortent dans :
+
+```text
+Downloads/YouTube Downloader
+```
+
+Si vous choisissez un autre dossier dans l'application, Android garde ce choix pour les prochains téléchargements.
+
+### Compiler l'APK Android
+
+Installez d'abord Flutter et Android Studio, puis vérifiez que Flutter voit bien Android :
+
+```bash
+flutter doctor
+```
+
+Ensuite, depuis le dépôt :
+
+```bash
+cd mobile
+flutter pub get
+flutter analyze
+flutter test
+flutter build apk --release
+```
+
+L'APK final sera créé ici :
+
+```text
+mobile/build/app/outputs/flutter-apk/app-release.apk
+```
+
+Pour une version de test plus rapide :
+
+```bash
+flutter build apk --debug
+```
+
+Le fichier sera ici :
+
+```text
+mobile/build/app/outputs/flutter-apk/app-debug.apk
+```
+
+### Installer sur un téléphone Android
+
+Copiez `app-release.apk` sur le téléphone, ouvrez-le, puis autorisez l'installation depuis une source inconnue si Android le demande.
+
+Au premier téléchargement, gardez Internet activé : l'application essaie de mettre `yt-dlp` à jour pour éviter l'erreur `yt-dlp version is old`.
 
 ## Mise à jour yt-dlp
 

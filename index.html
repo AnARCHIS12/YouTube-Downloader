@@ -4,10 +4,10 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="google-site-verification" content="SfkMLheM6hPxMh84mhI6VDTtGqiy5DfiPRg7JvfmdSs" />
-    <title>YouTube Downloader - App desktop yt-dlp</title>
+    <title>YouTube Downloader - Desktop et Android yt-dlp</title>
     <meta
       name="description"
-      content="Application desktop moderne pour telecharger des videos avec yt-dlp, disponible en paquets Linux DEB, RPM et archive portable."
+      content="Application moderne pour telecharger des videos avec yt-dlp, disponible sur Linux, Windows et Android Flutter."
     />
     <link rel="icon" href="assets/youtube-logo.svg" type="image/svg+xml" />
     <style>
@@ -358,9 +358,42 @@
         color: var(--muted);
       }
 
+      .mobile-showcase {
+        display: grid;
+        grid-template-columns: minmax(260px, 0.65fr) minmax(0, 1fr);
+        gap: clamp(26px, 5vw, 64px);
+        align-items: center;
+        margin-top: 34px;
+      }
+
+      .phone-preview {
+        justify-self: center;
+        width: min(100%, 280px);
+        overflow: hidden;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #050507;
+        box-shadow: 0 24px 80px rgba(0, 0, 0, 0.46);
+      }
+
+      .phone-preview img {
+        display: block;
+        width: 100%;
+        height: auto;
+      }
+
+      .mobile-copy {
+        max-width: 680px;
+      }
+
+      .mobile-copy p {
+        color: var(--muted);
+        font-size: 1.08rem;
+      }
+
       .downloads {
         display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
+        grid-template-columns: repeat(5, minmax(0, 1fr));
         gap: 16px;
         margin-top: 34px;
       }
@@ -424,6 +457,7 @@
         .hero,
         .app-body,
         .features,
+        .mobile-showcase,
         .downloads,
         .stats {
           grid-template-columns: 1fr;
@@ -499,6 +533,7 @@
       <nav class="nav-links" aria-label="Navigation principale">
         <a href="#features">Fonctions</a>
         <a href="#downloads">Telechargements</a>
+        <a href="#mobile">Android</a>
         <a href="https://github.com/AnARCHIS12/YouTube-Downloader">GitHub</a>
       </nav>
     </header>
@@ -506,15 +541,16 @@
     <main>
       <section class="hero">
         <div class="hero-copy">
-          <p class="eyebrow">App desktop yt-dlp</p>
+          <p class="eyebrow">Desktop et Android yt-dlp</p>
           <h1>YouTube Downloader</h1>
           <p class="lead">
-            Une application plein ecran au style YouTube pour telecharger des
-            videos avec yt-dlp, choisir la qualite et suivre la progression en
-            direct.
+            Une application au style YouTube pour telecharger des videos avec
+            yt-dlp, choisir la qualite, definir le dossier de sortie et suivre
+            la progression en direct sur bureau comme sur Android.
           </p>
           <div class="actions">
             <a class="button primary" href="#downloads">Telecharger l'app</a>
+            <a class="button" href="https://github.com/AnARCHIS12/YouTube-Downloader/releases/download/v1.0.0/app-release.apk">Telecharger APK Android</a>
             <a class="button" href="https://github.com/AnARCHIS12/YouTube-Downloader">Voir le code</a>
           </div>
         </div>
@@ -563,6 +599,10 @@
                   <strong>FFmpeg</strong>
                   <span>fusion audio/video</span>
                 </div>
+                <div class="stat">
+                  <strong>Android</strong>
+                  <span>Flutter APK</span>
+                </div>
               </div>
             </div>
           </div>
@@ -589,6 +629,52 @@
           <article class="feature">
             <h3>Paquets Linux</h3>
             <p>Distribution en DEB, RPM et archive portable pour installer rapidement l'application.</p>
+          </article>
+          <article class="feature">
+            <h3>Version Android</h3>
+            <p>APK Flutter avec yt-dlp, ffmpeg, choix du dossier et mise a jour automatique de yt-dlp.</p>
+          </article>
+        </div>
+      </section>
+
+      <section id="mobile">
+        <div class="section-head">
+          <h2>Android Flutter</h2>
+          <p>
+            La version mobile reprend l'essentiel de l'application desktop :
+            lien YouTube, choix de qualite, dossier de sortie et progression.
+          </p>
+        </div>
+        <div class="mobile-showcase">
+          <div class="phone-preview">
+            <img src="assets/mobile-preview.png" alt="Capture de l'application Android YouTube Downloader" />
+          </div>
+          <div class="mobile-copy">
+            <h2>La meme idee, adaptee au telephone.</h2>
+            <p>
+              Collez un lien, choisissez la qualite, selectionnez un dossier et
+              lancez le telechargement depuis une interface mobile simple.
+              L'APK embarque yt-dlp et ffmpeg, puis tente de mettre yt-dlp a
+              jour avant le telechargement.
+            </p>
+            <div class="actions">
+              <a class="button primary" href="https://github.com/AnARCHIS12/YouTube-Downloader/releases/download/v1.0.0/app-release.apk">Telecharger APK Android</a>
+              <a class="button" href="#downloads">Voir tous les telechargements</a>
+            </div>
+          </div>
+        </div>
+        <div class="features">
+          <article class="feature">
+            <h3>Choix du dossier</h3>
+            <p>Le selecteur Android permet de choisir ou enregistrer les videos.</p>
+          </article>
+          <article class="feature">
+            <h3>yt-dlp a jour</h3>
+            <p>L'app tente de mettre yt-dlp a jour avant chaque telechargement pour limiter les erreurs de version trop ancienne.</p>
+          </article>
+          <article class="feature">
+            <h3>APK compilable</h3>
+            <p>La commande <code>flutter build apk --release</code> cree le fichier Android pret a installer.</p>
           </article>
         </div>
       </section>
@@ -621,7 +707,7 @@
             </div>
             <p>Paquet RPM pour Fedora et distributions compatibles.</p>
             <code>youtube-downloader-1.0.0-1.fc44.x86_64.rpm</code>
-            <a class="button primary" href="https://github.com/AnARCHIS12/YouTube-Downloader/releases/download/v1.0.0/youtube-downloader-1.0.0-1.fc44.x86_64.rpm">Telecharger RPM</a>
+            <a class="button primary" href="https://github.com/AnARCHIS12/YouTube-Downloader/releases/download/v1.0.0/youtube-downloader-1.0.0-0.fc44.x86_64.rpm">Telecharger RPM</a>
           </article>
           <article class="download">
             <div class="os-head">
@@ -645,16 +731,28 @@
             <code>YouTubeDownloaderSetup.exe</code>
             <a class="button primary" href="https://github.com/AnARCHIS12/YouTube-Downloader/releases/download/v1.0.0/YouTubeDownloaderSetup.exe">Telecharger Windows</a>
           </article>
+          <article class="download">
+            <div class="os-head">
+              <div class="os-icon">
+                <img src="https://cdn.simpleicons.org/android/3DDC84" alt="Logo Android" />
+              </div>
+              <strong>Android</strong>
+            </div>
+            <p>APK Flutter avec yt-dlp, ffmpeg, choix du dossier de sortie et logo integres.</p>
+            <code>app-release.apk</code>
+            <a class="button primary" href="https://github.com/AnARCHIS12/YouTube-Downloader/releases/download/v1.0.0/youtube-downloader-1.0.0-0.apk">Telecharger APK</a>
+          </article>
         </div>
         <p class="note">
-          Les paquets doivent etre compiles sur chaque OS pour embarquer les bons binaires ffmpeg.
+          Les paquets desktop doivent etre compiles sur chaque OS pour embarquer les bons binaires ffmpeg.
           L'installateur Windows doit etre compile depuis Windows avec PyInstaller et Inno Setup.
+          L'APK Android se compile depuis le dossier <code>mobile/</code> avec Flutter.
         </p>
       </section>
     </main>
 
     <footer>
-      YouTube Downloader - construit avec Python, CustomTkinter, yt-dlp et PyInstaller.
+      YouTube Downloader - construit avec Python, CustomTkinter, Flutter, yt-dlp, ffmpeg et PyInstaller.
     </footer>
   </body>
 </html>
