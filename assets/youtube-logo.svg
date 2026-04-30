@@ -1,0 +1,6 @@
+<svg width="160" height="112" viewBox="0 0 160 112" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">YouTube style play logo</title>
+  <desc id="desc">A red rounded rectangle with a white play triangle.</desc>
+  <rect x="8" y="16" width="144" height="80" rx="22" fill="#FF0033"/>
+  <path d="M68 38L104 56L68 74V38Z" fill="white"/>
+</svg>

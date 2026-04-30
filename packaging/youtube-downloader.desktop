@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=YouTube Downloader
+Comment=Download YouTube videos with yt-dlp
+Exec=youtube-downloader
+Icon=youtube-downloader
+Terminal=false
+Categories=AudioVideo;Video;Network;
+StartupWMClass=YouTube Downloader

@@ -1,50 +1,134 @@
-# ⬇️ Téléchargeur YouTube (Cobalt Version)
+<h1 align="center">YouTube Downloader</h1>
 
-Une application de bureau moderne et légère pour télécharger des vidéos YouTube sans les tracas des cookies ou des navigateurs verrouillés.
+<p align="center">
+  <img src="assets/youtube-logo.svg" alt="YouTube Downloader logo" width="120" />
+</p>
 
-## ✨ Caractéristiques
+<p align="center">
+  Une application de bureau CustomTkinter au style YouTube moderne pour télécharger des vidéos avec <code>yt-dlp</code>. Les paquets compilés embarquent aussi <code>ffmpeg</code>.
+</p>
 
-- **🚀 Sans Navigateur :** Contrairement aux solutions basées sur `yt-dlp`, cette application n'a pas besoin d'accéder aux cookies de votre navigateur (Edge, Chrome, etc.).
-- **🔒 Sans Cookies :** Utilise l'API Cobalt pour traiter les téléchargements côté serveur, évitant ainsi les erreurs de déchiffrement DPAPI et les blocages anti-bot locaux.
-- **🎨 Interface Moderne :** Une interface sombre et élégante construite avec `CustomTkinter`.
-- **📊 Progression en Temps Réel :** Suivez la vitesse et l'état de votre téléchargement avec une barre de progression précise.
-- **⚙️ Qualité Flexible :** Choisissez votre résolution préférée, de 360p jusqu'à la 4K (2160p).
-- **🔗 Instances Redondantes :** Bascule automatiquement entre plusieurs serveurs Cobalt pour garantir une disponibilité maximale.
+<p align="center">
+  <img src="https://img.shields.io/badge/YouTube-Downloader-FF0033?style=for-the-badge&logo=youtube&logoColor=white" alt="YouTube Downloader" />
+  <br />
+  <img src="https://img.shields.io/badge/Python-3.10+-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python 3.10+" />
+  <img src="https://img.shields.io/badge/yt--dlp-2026.03.17-FF0033?style=flat-square&logo=youtube&logoColor=white" alt="yt-dlp" />
+  <img src="https://img.shields.io/badge/CustomTkinter-UI-111111?style=flat-square" alt="CustomTkinter" />
+  <img src="https://img.shields.io/badge/ffmpeg-bundled-007808?style=flat-square&logo=ffmpeg&logoColor=white" alt="ffmpeg bundled" />
+  <img src="https://img.shields.io/badge/Fullscreen-F11-303030?style=flat-square" alt="Fullscreen F11" />
+</p>
 
-## 📋 Prérequis
+<p align="center">
+  <strong>Interface plein écran rouge/noir inspirée de YouTube.</strong>
+</p>
 
-- **Python 3.10+**
-- Les bibliothèques suivantes :
-  - `customtkinter`
-  - `requests`
+## Prérequis pour lancer le code source
 
-## 🛠️ Installation
+- Python 3.10+
+- `customtkinter`
+- `yt-dlp`
+- `ffmpeg`
 
-1. Clonez ou téléchargez ce dépôt.
-2. Installez les dépendances nécessaires :
+## Installation
 
 ```bash
-pip install customtkinter requests
+python -m pip install -U customtkinter yt-dlp
 ```
 
-## 🚀 Utilisation
+Sur Fedora, `ffmpeg` doit aussi être installé pour lancer le code source directement.
 
-Lancez simplement le script Python :
+## Utilisation
 
 ```bash
 python youtube_downloader.py
 ```
 
-1. Copiez le lien de la vidéo YouTube souhaitée.
-2. Collez-le dans le champ "Lien de la vidéo".
-3. Sélectionnez la qualité désirée.
+L'application démarre en plein écran avec une interface sombre rouge/noir inspirée de YouTube.
+
+1. Collez un lien YouTube ou utilisez **Coller**.
+2. Choisissez la qualité maximale avec le sélecteur.
+3. Les vidéos vont par défaut dans `Vidéos/YouTube Downloader`. Sélectionnez un autre dossier si besoin.
 4. Cliquez sur **Télécharger**.
-5. La vidéo sera enregistrée dans le même dossier que le script.
 
-## 🛡️ Pourquoi cette version ?
+Raccourcis :
 
-Les versions précédentes utilisant `yt-dlp` rencontraient souvent des erreurs de type `Failed to decrypt with DPAPI` à cause des nouvelles sécurités de Chrome et Edge (App-Bound Encryption). Cette version résout définitivement ce problème en utilisant des instances **Cobalt** distantes pour extraire les flux vidéo, rendant le processus 100% fiable et indépendant de votre configuration de navigateur.
+- **F11** : basculer plein écran / fenêtre
+- **Échap** : sortir du plein écran
 
-## 📜 Licence
+La zone **Activité** affiche la progression du téléchargement et l'étape de fusion audio/vidéo.
 
-Ce projet est destiné à un usage personnel et éducatif. Veuillez respecter les droits d'auteur et les conditions d'utilisation de YouTube.
+## Créer les paquets Linux
+
+Installez les dépendances de build :
+
+```bash
+python -m pip install -r requirements-build.txt
+```
+
+Puis générez l'application compilée avec `yt-dlp`, `ffmpeg` et `ffprobe` embarqués, le `.deb`, le `.rpm` et une archive Linux :
+
+```bash
+./scripts/build_packages.sh
+```
+
+Les fichiers sortent dans :
+
+```bash
+dist/packages/
+```
+
+Le logo d'application est installé depuis :
+
+```bash
+assets/youtube-logo.svg
+```
+
+Les paquets compilés embarquent `ffmpeg` et `ffprobe` depuis la machine de build pour fusionner l'audio et la vidéo.
+
+## Page GitHub Pages
+
+La page de présentation est dans :
+
+```text
+index.html
+```
+
+Pour la publier :
+
+1. Envoyez le dépôt sur GitHub.
+2. Ouvrez **Settings** > **Pages**.
+3. Dans **Build and deployment**, choisissez **Deploy from a branch**.
+4. Sélectionnez la branche `main` et le dossier `/ (root)`.
+5. Créez une release GitHub et ajoutez les fichiers de `dist/packages/`.
+6. Pour Windows, ajoutez aussi `YouTubeDownloaderSetup.exe` dans la release après l'avoir compilé depuis Windows.
+
+Les boutons de téléchargement de la page pointent vers la dernière release GitHub pour Debian/Ubuntu, Fedora/RPM, Linux portable et Windows.
+
+## Créer l'installateur Windows
+
+L'installateur Windows doit être compilé depuis Windows pour embarquer les bons binaires `.exe` et `.dll`.
+
+Installez d'abord :
+
+- Python 3.10+
+- ffmpeg pour Windows, avec `ffmpeg.exe` et `ffprobe.exe` dans le `PATH`
+- Inno Setup 6 pour créer l'installateur
+
+```powershell
+.\scripts\build_windows.ps1
+```
+
+Les fichiers Windows seront dans :
+
+```text
+dist\YouTubeDownloader.exe
+dist\packages\YouTubeDownloaderSetup.exe
+```
+
+## Mise à jour yt-dlp
+
+Si YouTube change quelque chose et que les téléchargements échouent :
+
+```bash
+python -m pip install -U yt-dlp
+```
