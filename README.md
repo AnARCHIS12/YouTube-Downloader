@@ -102,7 +102,7 @@ Pour la publier :
 5. Créez une release GitHub et ajoutez les fichiers de `dist/packages/`.
 6. Pour Windows, ajoutez aussi `YouTubeDownloaderSetup.exe` dans la release après l'avoir compilé depuis Windows.
 
-Les boutons de téléchargement de la page pointent vers la dernière release GitHub pour Debian/Ubuntu, Fedora/RPM, Linux portable et Windows.
+Les boutons de téléchargement de la page pointent vers la release GitHub `v1.0.0` pour Debian/Ubuntu, Fedora/RPM, Linux portable et Windows.
 
 ## Créer l'installateur Windows
 
