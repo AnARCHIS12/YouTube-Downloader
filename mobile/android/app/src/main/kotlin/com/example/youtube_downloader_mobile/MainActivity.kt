@@ -129,7 +129,6 @@ class MainActivity : FlutterActivity() {
         val downloadThread = Thread {
             try {
                 initializeDownloader()
-                updateYoutubeDlIfPossible()
 
                 val workingDir = File(
                     getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS),
@@ -145,6 +144,12 @@ class MainActivity : FlutterActivity() {
                 val request = YoutubeDLRequest(url)
                 request.addOption("--no-playlist")
                 request.addOption("--newline")
+                request.addOption("--socket-timeout", "25")
+                request.addOption("--retries", "3")
+                request.addOption("--fragment-retries", "3")
+                request.addOption("--extractor-retries", "3")
+                request.addOption("--concurrent-fragments", "1")
+                request.addOption("--no-mtime")
                 request.addOption("-o", "${workingDir.absolutePath}/%(title)s.%(ext)s")
                 addFormatOptions(request, quality)
 
@@ -224,19 +229,6 @@ class MainActivity : FlutterActivity() {
         YoutubeDL.getInstance().init(applicationContext)
         FFmpeg.getInstance().init(applicationContext)
         initialized = true
-    }
-
-    private fun updateYoutubeDlIfPossible() {
-        try {
-            sendProgress(2.0f, -1, "Mise a jour de yt-dlp...")
-            YoutubeDL.getInstance().updateYoutubeDL(
-                applicationContext,
-                YoutubeDL.UpdateChannel.STABLE
-            )
-        } catch (error: Throwable) {
-            Log.w(logTag, "yt-dlp update failed", error)
-            sendProgress(2.0f, -1, "Mise a jour yt-dlp impossible, essai avec la version incluse...")
-        }
     }
 
     private fun addFormatOptions(request: YoutubeDLRequest, quality: String) {
