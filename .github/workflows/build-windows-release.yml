@@ -41,6 +41,12 @@ jobs:
         shell: pwsh
         run: |
           choco install ffmpeg innosetup -y --no-progress
+          $ffmpegBin = "C:\ProgramData\chocolatey\lib\ffmpeg\tools\ffmpeg\bin"
+          if (-not (Test-Path (Join-Path $ffmpegBin "ffmpeg.exe"))) {
+            throw "ffmpeg.exe introuvable dans $ffmpegBin"
+          }
+          "FFMPEG_BIN_DIR=$ffmpegBin" | Out-File -FilePath $env:GITHUB_ENV -Append
+          $ffmpegBin | Out-File -FilePath $env:GITHUB_PATH -Append
           "C:\ProgramData\chocolatey\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
           "C:\Program Files (x86)\Inno Setup 6" | Out-File -FilePath $env:GITHUB_PATH -Append
           python -m pip install --upgrade pip

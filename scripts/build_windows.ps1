@@ -8,11 +8,97 @@ $InstallerExe = Join-Path $PackageDir "YouTubeDownloaderSetup.exe"
 
 Set-Location $RootDir
 
-foreach ($command in @("ffmpeg", "ffprobe")) {
-    if (-not (Get-Command $command -ErrorAction SilentlyContinue)) {
-        throw "$command introuvable. Installe-le ou ajoute-le au PATH avant de compiler Windows."
+function Test-ChocolateyShim {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path
+    )
+
+    $parent = Split-Path -Parent $Path
+    $grandParent = Split-Path -Parent $parent
+
+    return ((Split-Path -Leaf $parent) -ieq "bin" -and (Split-Path -Leaf $grandParent) -ieq "chocolatey")
+}
+
+function Find-RealFfmpegTool {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Name
+    )
+
+    $exeName = "$Name.exe"
+    $candidates = @()
+
+    if ($env:FFMPEG_BIN_DIR) {
+        $candidates += Join-Path $env:FFMPEG_BIN_DIR $exeName
+    }
+
+    if ($env:ProgramData) {
+        $candidates += Join-Path $env:ProgramData "chocolatey\lib\ffmpeg\tools\ffmpeg\bin\$exeName"
+    }
+
+    $pathCommand = Get-Command $Name -ErrorAction SilentlyContinue
+    if ($pathCommand) {
+        $candidates += $pathCommand.Source
+    }
+
+    $shimPath = $null
+
+    foreach ($path in $candidates) {
+        if (-not $path -or -not (Test-Path $path)) {
+            continue
+        }
+
+        $resolvedPath = (Resolve-Path $path).Path
+        if (Test-ChocolateyShim $resolvedPath) {
+            if (-not $shimPath) {
+                $shimPath = $resolvedPath
+            }
+            continue
+        }
+
+        return $resolvedPath
+    }
+
+    if ($shimPath) {
+        throw "$Name pointe vers le shim Chocolatey ($shimPath), pas vers le vrai binaire. Ajoute le dossier reel ffmpeg\bin au PATH."
+    }
+
+    throw "$Name introuvable. Installe ffmpeg pour Windows ou ajoute son dossier bin au PATH avant de compiler."
+}
+
+function Test-FfmpegToolStarts {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Name,
+        [Parameter(Mandatory = $true)]
+        [string]$Path
+    )
+
+    & $Path -version | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        throw "$Name ne demarre pas correctement : $Path"
     }
 }
+
+$ffmpegPath = Find-RealFfmpegTool "ffmpeg"
+$ffprobePath = Find-RealFfmpegTool "ffprobe"
+$ffmpegBinDir = Split-Path -Parent $ffmpegPath
+
+Test-FfmpegToolStarts "ffmpeg" $ffmpegPath
+Test-FfmpegToolStarts "ffprobe" $ffprobePath
+
+if ((Split-Path -Parent $ffprobePath) -ne $ffmpegBinDir) {
+    Write-Host "ffmpeg : $ffmpegPath"
+    Write-Host "ffprobe: $ffprobePath"
+}
+
+$env:FFMPEG_BIN_DIR = $ffmpegBinDir
+$env:FFMPEG_PATH = $ffmpegPath
+$env:FFPROBE_PATH = $ffprobePath
+$env:PATH = "$ffmpegBinDir;$env:PATH"
+
+Write-Host "Binaires FFmpeg embarques depuis : $ffmpegBinDir"
 
 $python = Get-Command "py" -ErrorAction SilentlyContinue
 if ($python) {
