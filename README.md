@@ -41,7 +41,7 @@ Sur Fedora, `ffmpeg` doit aussi être installé pour lancer le code source direc
 ## Utilisation
 
 ```bash
-python youtube_downloader.py
+python3 youtube_downloader.py
 ```
 
 L'application démarre en plein écran avec une interface sombre rouge/noir inspirée de YouTube.
