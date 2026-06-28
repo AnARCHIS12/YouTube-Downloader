@@ -35,6 +35,7 @@ class MainActivity : FlutterActivity() {
     private val destinationRequestCode = 4201
     private val mainHandler = Handler(Looper.getMainLooper())
     private var initialized = false
+    private var ytdlpUpdateAttempted = false
     private var pendingDestinationResult: MethodChannel.Result? = null
     private lateinit var downloadChannel: MethodChannel
 
@@ -47,6 +48,7 @@ class MainActivity : FlutterActivity() {
         )
         downloadChannel.setMethodCallHandler { call, result ->
             when (call.method) {
+                "prepare" -> prepareDownloader(result)
                 "download" -> startDownload(call, result)
                 "getDestination" -> result.success(destinationLabel())
                 "pickDestination" -> pickDestination(result)
@@ -122,6 +124,32 @@ class MainActivity : FlutterActivity() {
                 error.toString()
             )
         }
+    }
+
+    private fun prepareDownloader(result: MethodChannel.Result) {
+        Thread {
+            try {
+                initializeDownloader()
+                val version = YoutubeDL.getInstance().versionName(applicationContext)
+                mainHandler.post {
+                    result.success(
+                        mapOf(
+                            "ready" to true,
+                            "ytdlpVersion" to version
+                        )
+                    )
+                }
+            } catch (error: Throwable) {
+                Log.e(logTag, "Downloader preparation failed", error)
+                mainHandler.post {
+                    result.error(
+                        "prepare_error",
+                        error.message ?: "Impossible de preparer yt-dlp.",
+                        downloadErrorDetails(error)
+                    )
+                }
+            }
+        }.start()
     }
 
     private fun startDownload(call: MethodCall, result: MethodChannel.Result) {
@@ -238,7 +266,48 @@ class MainActivity : FlutterActivity() {
 
         YoutubeDL.getInstance().init(applicationContext)
         FFmpeg.getInstance().init(applicationContext)
+        ensureYtDlpUpdated()
         initialized = true
+    }
+
+    private fun ensureYtDlpUpdated() {
+        if (ytdlpUpdateAttempted) {
+            return
+        }
+        ytdlpUpdateAttempted = true
+
+        try {
+            sendProgress(1.0f, -1, "Mise a jour de yt-dlp...")
+            val status = YoutubeDL.getInstance().updateYoutubeDL(
+                applicationContext,
+                YoutubeDL.UpdateChannel._STABLE
+            )
+            val version = YoutubeDL.getInstance().versionName(applicationContext)
+            Log.i(logTag, "yt-dlp update status=$status version=$version")
+            sendProgress(
+                2.0f,
+                -1,
+                when (status) {
+                    YoutubeDL.UpdateStatus.DONE ->
+                        "yt-dlp mis a jour ($version)."
+                    YoutubeDL.UpdateStatus.ALREADY_UP_TO_DATE ->
+                        "yt-dlp a jour ($version)."
+                    else -> "yt-dlp pret ($version)."
+                }
+            )
+        } catch (error: Throwable) {
+            Log.w(logTag, "yt-dlp update failed, using bundled binary", error)
+            val version = try {
+                YoutubeDL.getInstance().versionName(applicationContext)
+            } catch (versionError: Throwable) {
+                "inconnue"
+            }
+            sendProgress(
+                2.0f,
+                -1,
+                "yt-dlp $version (mise a jour en ligne impossible)."
+            )
+        }
     }
 
     private fun addFormatOptions(request: YoutubeDLRequest, quality: String) {

@@ -56,7 +56,36 @@ class _DownloaderHomePageState extends State<DownloaderHomePage> {
   @override
   void initState() {
     super.initState();
+    _downloadEngine.onProgress = (DownloadResult progress) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _activity = progress.message;
+        _progress = progress.progress;
+      });
+    };
+    _prepareDownloader();
     _loadDestination();
+  }
+
+  Future<void> _prepareDownloader() async {
+    setState(() {
+      _activity = 'Preparation de yt-dlp...';
+      _progress = 0.02;
+    });
+
+    await _downloadEngine.prepare();
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _activity = 'Pret. Colle un lien YouTube.';
+      _progress = 0;
+    });
   }
 
   @override

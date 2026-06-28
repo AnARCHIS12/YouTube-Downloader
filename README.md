@@ -157,7 +157,8 @@ Fonctions mobiles :
 - choisir la qualité : `360p`, `480p`, `720p`, `1080p`, `1440p`, `2160p` ou `Audio` ;
 - choisir le dossier de sortie avec le sélecteur Android ;
 - télécharger et fusionner audio/vidéo avec `ffmpeg` intégré ;
-- afficher le détail complet si Android ou `yt-dlp` renvoie une erreur.
+- afficher le détail complet si Android ou `yt-dlp` renvoie une erreur ;
+- mettre à jour automatiquement `yt-dlp` au lancement pour rester compatible avec YouTube.
 
 Par défaut, les fichiers sortent dans :
 

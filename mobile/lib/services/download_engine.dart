@@ -41,6 +41,16 @@ class DownloadEngine {
 
   void Function(DownloadResult progress)? onProgress;
 
+  Future<void> prepare() async {
+    try {
+      await _channel.invokeMethod<Map<Object?, Object?>>('prepare');
+    } on MissingPluginException {
+      return;
+    } on PlatformException {
+      return;
+    }
+  }
+
   Future<String> getDestination() async {
     try {
       return await _channel.invokeMethod<String>('getDestination') ??
