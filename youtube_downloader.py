@@ -241,7 +241,7 @@ def lancer_mise_a_jour_moteur(interactive=True):
     global is_updating_moteur
     if is_updating_moteur:
         if interactive:
-            messagebox.showinfo("Mise à jour", "Une vérification de mise à jour est déjà en cours.")
+            show_info("Mise à jour", "Une vérification de mise à jour est déjà en cours.")
         return
     threading.Thread(target=check_and_update_ytdlp, args=(interactive,), daemon=True).start()
 
@@ -258,8 +258,8 @@ def check_and_update_ytdlp(interactive=False):
         latest_ver, download_url, error_msg = fetch_latest_ytdlp_info()
         if not latest_ver or not download_url:
             if interactive:
-                safe_ui(messagebox.showwarning, "Mise à jour", f"Impossible de vérifier les mises à jour :\n{error_msg}")
-                set_detail(f"Vérification de mise à jour échouée ({error_msg}).")
+                show_warning("Mise à jour", f"Impossible de contacter le serveur de mise à jour :\n\n{error_msg}")
+                set_detail(f"Vérification échouée ({error_msg}).")
             return
 
         # Vérification et téléchargement de FFmpeg si manquant
@@ -283,19 +283,19 @@ def check_and_update_ytdlp(interactive=False):
             set_detail(f"yt-dlp a été mis à jour avec succès vers la version {new_ver} !")
 
             if interactive:
-                safe_ui(messagebox.showinfo, "Mise à jour réussie", f"yt-dlp a été mis à jour avec succès vers la version {new_ver} ! 🎉")
+                show_success("Mise à jour réussie", f"yt-dlp a été mis à jour avec succès vers la version {new_ver} !")
         else:
             safe_ui(version_label.configure, text=f"yt-dlp {current_ver}")
             safe_ui(side_status_text.configure, text=f"yt-dlp v{current_ver} (à jour)\nffmpeg fusionne audio + vidéo")
             if interactive:
                 set_status("Moteur à jour", SUCCESS)
                 set_detail(f"yt-dlp est déjà à jour (version {current_ver}).")
-                safe_ui(messagebox.showinfo, "À jour", f"yt-dlp est déjà à jour (version {current_ver}).")
+                show_info("À jour", f"Le moteur yt-dlp est déjà à jour (version {current_ver}).")
     except Exception as error:
         if interactive:
             set_status("Échec mise à jour", ERROR)
             set_detail("Échec de la mise à jour de yt-dlp.")
-            safe_ui(messagebox.showerror, "Erreur de mise à jour", f"Impossible de mettre à jour yt-dlp :\n{error}")
+            show_error("Erreur de mise à jour", f"Impossible de mettre à jour yt-dlp :\n\n{error}")
     finally:
         is_updating_moteur = False
         safe_ui(bouton_maj_moteur.configure, state="normal", text="🔄 Mettre à jour yt-dlp")
@@ -430,6 +430,196 @@ def format_size(bytes_size):
         bytes_size /= 1024
     return f"{bytes_size:.1f} To"
 
+def open_output_folder(path):
+    """Ouvre le dossier spécifié dans l'explorateur de fichiers du système."""
+    try:
+        if not path or not os.path.exists(path):
+            return
+        if os.name == "nt":
+            os.startfile(path)
+        elif sys.platform == "darwin":
+            subprocess.run(["open", path])
+        else:
+            subprocess.run(["xdg-open", path])
+    except Exception as e:
+        print("Erreur ouverture dossier:", e)
+
+class ModernModal(ctk.CTkToplevel):
+    """Fenêtre modale élégante et moderne au design sombre YouTube."""
+    def __init__(self, parent, title="Notification", message="", modal_type="info", extra_btn_text=None, extra_btn_cmd=None):
+        super().__init__(parent)
+        self.transient(parent)
+        self.title(title)
+        self.configure(fg_color="#121212")
+        self.resizable(False, False)
+
+        colors = {
+            "success": (SUCCESS, "#14301a", "✓", "Succès"),
+            "warning": (WARNING, "#332408", "!", "Attention"),
+            "error": (ERROR, "#381010", "✕", "Erreur"),
+            "info": ("#38bdf8", "#082838", "ℹ", "Information"),
+        }
+        accent_color, badge_bg, icon_char, default_type_name = colors.get(modal_type, colors["info"])
+
+        # Carte principale avec bordure sombre
+        card = ctk.CTkFrame(
+            self,
+            fg_color="#181818",
+            corner_radius=14,
+            border_width=1,
+            border_color=BORDER_COLOR
+        )
+        card.pack(fill="both", expand=True, padx=12, pady=12)
+
+        # En-tête avec badge d'icône coloré
+        header = ctk.CTkFrame(card, fg_color="transparent")
+        header.pack(fill="x", padx=20, pady=(18, 10))
+
+        badge = ctk.CTkFrame(
+            header,
+            width=36,
+            height=36,
+            corner_radius=18,
+            fg_color=badge_bg,
+            border_width=1.5,
+            border_color=accent_color
+        )
+        badge.pack(side="left", padx=(0, 12))
+        badge.pack_propagate(False)
+
+        badge_lbl = ctk.CTkLabel(
+            badge,
+            text=icon_char,
+            font=("Segoe UI", 16, "bold"),
+            text_color=accent_color
+        )
+        badge_lbl.place(relx=0.5, rely=0.5, anchor="center")
+
+        title_lbl = ctk.CTkLabel(
+            header,
+            text=title or default_type_name,
+            font=("Segoe UI", 16, "bold"),
+            text_color=WHITE,
+            anchor="w"
+        )
+        title_lbl.pack(side="left", fill="x", expand=True)
+
+        # Zone de texte
+        msg_frame = ctk.CTkFrame(card, fg_color="#121212", corner_radius=10, border_width=1, border_color="#262626")
+        msg_frame.pack(fill="both", expand=True, padx=20, pady=(4, 16))
+
+        lines = message.strip().split("\n")
+        if len(lines) > 5 or len(message) > 250:
+            msg_box = ctk.CTkTextbox(
+                msg_frame,
+                font=("Segoe UI", 13),
+                text_color=TEXT_SOFT,
+                fg_color="transparent",
+                wrap="word",
+                height=130,
+                activate_scrollbars=True
+            )
+            msg_box.pack(fill="both", expand=True, padx=12, pady=10)
+            msg_box.insert("1.0", message)
+            msg_box.configure(state="disabled")
+        else:
+            msg_lbl = ctk.CTkLabel(
+                msg_frame,
+                text=message,
+                font=("Segoe UI", 13),
+                text_color=TEXT_SOFT,
+                justify="left",
+                anchor="w",
+                wraplength=380
+            )
+            msg_lbl.pack(fill="both", expand=True, padx=14, pady=12)
+
+        # Boutons d'action
+        footer = ctk.CTkFrame(card, fg_color="transparent")
+        footer.pack(fill="x", padx=20, pady=(0, 18))
+
+        btn_ok = ctk.CTkButton(
+            footer,
+            text="Compris" if modal_type in ("error", "warning") else "Fermer",
+            font=("Segoe UI", 13, "bold"),
+            fg_color=YOUTUBE_RED if modal_type == "error" else ("#2563eb" if modal_type == "info" else "#2b2b2b"),
+            hover_color=YOUTUBE_RED_DARK if modal_type == "error" else ("#1d4ed8" if modal_type == "info" else "#383838"),
+            text_color=WHITE,
+            height=34,
+            corner_radius=8,
+            command=self._dismiss
+        )
+        btn_ok.pack(side="right", padx=(8, 0))
+
+        if extra_btn_text and extra_btn_cmd:
+            btn_extra = ctk.CTkButton(
+                footer,
+                text=extra_btn_text,
+                font=("Segoe UI", 13, "bold"),
+                fg_color=SUCCESS if modal_type == "success" else "#333333",
+                hover_color="#16a34a" if modal_type == "success" else "#444444",
+                text_color=WHITE,
+                height=34,
+                corner_radius=8,
+                command=lambda: (self._dismiss(), extra_btn_cmd())
+            )
+            btn_extra.pack(side="right")
+
+        self.bind("<Return>", lambda e: self._dismiss())
+        self.bind("<Escape>", lambda e: self._dismiss())
+
+        self._center_window(parent)
+        self.grab_set()
+        self.focus_set()
+
+    def _center_window(self, parent):
+        self.update_idletasks()
+        w = max(440, self.winfo_reqwidth())
+        h = max(200, self.winfo_reqheight())
+        try:
+            px = parent.winfo_rootx()
+            py = parent.winfo_rooty()
+            pw = parent.winfo_width()
+            ph = parent.winfo_height()
+            x = px + max(0, (pw - w) // 2)
+            y = py + max(0, (ph - h) // 2)
+        except Exception:
+            x = (self.winfo_screenwidth() - w) // 2
+            y = (self.winfo_screenheight() - h) // 2
+        self.geometry(f"{w}x{h}+{x}+{y}")
+
+    def _dismiss(self):
+        try:
+            self.grab_release()
+        except Exception:
+            pass
+        self.destroy()
+
+def show_custom_modal(title, message, modal_type="info", extra_btn_text=None, extra_btn_cmd=None):
+    """Affiche une boîte de dialogue modale moderne et fluide intégrée au thème."""
+    def _open():
+        ModernModal(
+            fenetre,
+            title=title,
+            message=message,
+            modal_type=modal_type,
+            extra_btn_text=extra_btn_text,
+            extra_btn_cmd=extra_btn_cmd
+        )
+    safe_ui(_open)
+
+def show_info(title, message):
+    show_custom_modal(title, message, modal_type="info")
+
+def show_success(title, message, extra_btn_text=None, extra_btn_cmd=None):
+    show_custom_modal(title, message, modal_type="success", extra_btn_text=extra_btn_text, extra_btn_cmd=extra_btn_cmd)
+
+def show_warning(title, message):
+    show_custom_modal(title, message, modal_type="warning")
+
+def show_error(title, message):
+    show_custom_modal(title, message, modal_type="error")
+
 def safe_ui(callback, *args, **kwargs):
     """Exécute une mise à jour Tkinter depuis le thread principal."""
     fenetre.after(0, lambda: callback(*args, **kwargs))
@@ -482,11 +672,11 @@ def lancer_telechargement():
     dossier_sortie = dossier_var.get().strip() or os.getcwd()
 
     if not url:
-        messagebox.showwarning("Erreur", "Veuillez entrer une URL valide.")
+        show_warning("URL requise", "Veuillez entrer une URL YouTube.")
         return
 
     if "youtube.com" not in url and "youtu.be" not in url:
-        messagebox.showwarning("Erreur", "Veuillez entrer un lien YouTube valide.")
+        show_warning("Lien invalide", "Veuillez entrer un lien YouTube valide (ex: youtube.com ou youtu.be).")
         return
 
     try:
@@ -495,7 +685,7 @@ def lancer_telechargement():
         pass
 
     if not os.path.isdir(dossier_sortie):
-        messagebox.showwarning("Erreur", "Le dossier de sortie n'existe pas.")
+        show_warning("Dossier introuvable", "Le dossier de sortie sélectionné n'existe pas.")
         return
 
     threading.Thread(target=telecharger_video, args=(url, qualite, dossier_sortie), daemon=True).start()
@@ -561,12 +751,17 @@ def telecharger_video(url, qualite, dossier_sortie):
         safe_ui(progress_bar.set, 1.0)
         set_status("Téléchargement terminé", SUCCESS)
         set_detail(f"Enregistré : {os.path.basename(filename)}")
-        safe_ui(messagebox.showinfo, "Succès", f"Vidéo téléchargée ! 🎉\n\n{os.path.basename(filename)}")
+        show_success(
+            "Téléchargement terminé",
+            f"Vidéo téléchargée avec succès !\n\n{os.path.basename(filename)}",
+            extra_btn_text="Ouvrir le dossier",
+            extra_btn_cmd=lambda: open_output_folder(dossier_sortie)
+        )
 
     except Exception as error:
         set_status("Échec du téléchargement", ERROR)
         set_detail("Consulte le message d'erreur pour le détail.")
-        safe_ui(messagebox.showerror, "Erreur", f"Échec :\n{explain_yt_dlp_error(error)}")
+        show_error("Erreur de téléchargement", f"Échec :\n\n{explain_yt_dlp_error(error)}")
 
     finally:
         safe_ui(bouton_telecharger.configure, state="normal", text="Télécharger")
@@ -578,7 +773,7 @@ def coller_url():
         set_status("URL collée", SUCCESS)
         set_detail("Prêt à télécharger.")
     except Exception:
-        messagebox.showwarning("Presse-papiers", "Impossible de lire le presse-papiers.")
+        show_warning("Presse-papiers", "Impossible de lire le contenu du presse-papiers.")
 
 def effacer_url():
     entree_url.delete(0, "end")
