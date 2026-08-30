@@ -751,11 +751,11 @@ def telecharger_video(url, qualite, dossier_sortie):
 
         if ffmpeg_location:
             ydl_opts["ffmpeg_location"] = ffmpeg_location
-            ydl_opts["format"] = f"bestvideo[height<={qualite}]+bestaudio/best[height<={qualite}]/best"
+            ydl_opts["format"] = f"bestvideo[height<={qualite}]+bestaudio/best[height<={qualite}]/bestvideo+bestaudio/best"
             ydl_opts["merge_output_format"] = "mp4"
         else:
             # Sans FFmpeg : télécharger le meilleur flux combiné audio+vidéo sans étape de fusion requise
-            ydl_opts["format"] = f"best[height<={qualite}][ext=mp4]/best[height<={qualite}]/best"
+            ydl_opts["format"] = f"best[height<={qualite}][ext=mp4]/best[height<={qualite}]/best[ext=mp4]/best"
 
         filename = None
         try:
@@ -764,11 +764,27 @@ def telecharger_video(url, qualite, dossier_sortie):
                 filename = ydl.prepare_filename(info)
         except Exception as error:
             err_str = str(error).lower()
-            if ("ffmpeg" in err_str or "merging" in err_str) and ydl_opts.get("merge_output_format"):
+            # 1. Si la qualité spécifique demandée n'existe pas -> Fallback automatique sur la meilleure qualité disponible
+            if "requested format is not available" in err_str or "format is not available" in err_str:
+                set_status("Qualité automatique", WARNING)
+                set_detail("Qualité spécifique indisponible, téléchargement de la version disponible...")
+                retry_opts = dict(ydl_opts)
+                retry_opts["format"] = "bestvideo+bestaudio/best" if ffmpeg_location else "best[ext=mp4]/best"
+                try:
+                    with yt_dlp.YoutubeDL(retry_opts) as ydl:
+                        info = ydl.extract_info(url, download=True)
+                        filename = ydl.prepare_filename(info)
+                except Exception as inner_error:
+                    set_status("Échec du téléchargement", ERROR)
+                    set_detail("Consulte le message d'erreur pour le détail.")
+                    show_error("Erreur de téléchargement", f"Échec :\n\n{explain_yt_dlp_error(inner_error)}")
+                    return
+            # 2. Si problème ffmpeg -> Fallback sur flux direct sans fusion
+            elif ("ffmpeg" in err_str or "merging" in err_str) and ydl_opts.get("merge_output_format"):
                 set_status("Téléchargement direct", WARNING)
                 set_detail("Nouvelle tentative avec flux direct sans fusion...")
                 fallback_opts = dict(ydl_opts)
-                fallback_opts["format"] = f"best[height<={qualite}][ext=mp4]/best[height<={qualite}]/best"
+                fallback_opts["format"] = f"best[height<={qualite}][ext=mp4]/best[height<={qualite}]/best[ext=mp4]/best"
                 fallback_opts.pop("merge_output_format", None)
                 fallback_opts.pop("ffmpeg_location", None)
                 try:
