@@ -1,11 +1,36 @@
+import io
+import json
 import os
+import re
 import shutil
 import sys
 import threading
 import tkinter as tk
 from tkinter import filedialog, messagebox
+import urllib.request
+import zipfile
 
 import customtkinter as ctk
+
+# ==================== GESTION DYNAMIQUE DU MOTEUR (YT-DLP) ====================
+
+def get_engine_dir():
+    """Retourne le répertoire utilisateur dédié aux mises à jour de yt-dlp."""
+    if os.name == "nt":
+        base = os.environ.get("APPDATA") or os.path.expanduser("~")
+        path = os.path.join(base, "YouTube Downloader", "engine")
+    else:
+        path = os.path.join(os.path.expanduser("~"), ".local", "share", "youtube-downloader", "engine")
+    os.makedirs(path, exist_ok=True)
+    return path
+
+def setup_engine_path():
+    """Ajoute le répertoire moteur utilisateur en tête de sys.path."""
+    engine_dir = get_engine_dir()
+    if engine_dir not in sys.path:
+        sys.path.insert(0, engine_dir)
+
+setup_engine_path()
 import yt_dlp
 
 # ==================== CONFIGURATION ====================
@@ -28,7 +53,207 @@ WARNING = "#f59e0b"
 ERROR = "#ff4e45"
 WHITE = "#ffffff"
 
-# ==================== LOGIQUE DE TÉLÉCHARGEMENT (YT-DLP) ====================
+# ==================== LOGIQUE DU MOTEUR YT-DLP & MISES À JOUR ====================
+
+def parse_version(v_str):
+    """Transforme une chaîne de version en tuple d'entiers pour comparaison fiable."""
+    if not v_str:
+        return (0,)
+    parts = []
+    for part in re.split(r"[\.\-_]", str(v_str)):
+        digits = re.findall(r"\d+", part)
+        if digits:
+            parts.append(int(digits[0]))
+    return tuple(parts) if parts else (0,)
+
+def get_current_ytdlp_version():
+    """Retourne la version actuellement chargée de yt-dlp."""
+    try:
+        return yt_dlp.version.__version__
+    except Exception:
+        return "inconnue"
+
+def reload_ytdlp_module():
+    """Recharge dynamiquement yt_dlp et tous ses sous-modules pour utiliser la nouvelle version."""
+    global yt_dlp
+    modules_to_remove = [name for name in sys.modules if name == "yt_dlp" or name.startswith("yt_dlp.")]
+    for name in modules_to_remove:
+        del sys.modules[name]
+
+    setup_engine_path()
+    import yt_dlp as reloaded_ytdlp
+    yt_dlp = reloaded_ytdlp
+    return yt_dlp
+
+def fetch_latest_ytdlp_info():
+    """Récupère les informations de la dernière version de yt-dlp depuis PyPI ou GitHub."""
+    headers = {"User-Agent": "YouTube-Downloader/1.0 (Desktop App)"}
+
+    # 1. Tentative principale via l'API PyPI
+    try:
+        req = urllib.request.Request("https://pypi.org/pypi/yt-dlp/json", headers=headers)
+        with urllib.request.urlopen(req, timeout=12) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            version = data.get("info", {}).get("version")
+            wheel_url = None
+            tar_url = None
+            for file_info in data.get("urls", []):
+                packagetype = file_info.get("packagetype")
+                filename = file_info.get("filename", "")
+                if packagetype == "bdist_wheel" and filename.endswith("-none-any.whl"):
+                    wheel_url = file_info.get("url")
+                    break
+                elif packagetype == "sdist" or filename.endswith(".tar.gz"):
+                    tar_url = file_info.get("url")
+
+            download_url = wheel_url or tar_url
+            if version and download_url:
+                return version, download_url
+    except Exception:
+        pass
+
+    # 2. Tentative de secours via l'API GitHub Releases
+    try:
+        req = urllib.request.Request("https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest", headers=headers)
+        with urllib.request.urlopen(req, timeout=12) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            tag_name = data.get("tag_name", "").lstrip("v")
+            download_url = None
+            for asset in data.get("assets", []):
+                name = asset.get("name", "")
+                if name.endswith(".whl"):
+                    download_url = asset.get("browser_download_url")
+                    break
+            if not download_url:
+                download_url = data.get("zipball_url") or data.get("tarball_url")
+            if tag_name and download_url:
+                return tag_name, download_url
+    except Exception:
+        pass
+
+    return None, None
+
+def download_and_apply_ytdlp_update(download_url, new_version):
+    """Télécharge l'archive yt-dlp et l'extrait dans le répertoire moteur utilisateur."""
+    headers = {"User-Agent": "YouTube-Downloader/1.0 (Desktop App)"}
+    req = urllib.request.Request(download_url, headers=headers)
+    with urllib.request.urlopen(req, timeout=45) as resp:
+        archive_bytes = resp.read()
+
+    engine_dir = get_engine_dir()
+    tmp_extract_dir = os.path.join(engine_dir, "yt_dlp_tmp")
+    if os.path.exists(tmp_extract_dir):
+        shutil.rmtree(tmp_extract_dir, ignore_errors=True)
+    os.makedirs(tmp_extract_dir, exist_ok=True)
+
+    if download_url.endswith(".whl") or download_url.endswith(".zip") or b"PK\x03\x04" in archive_bytes[:10]:
+        with zipfile.ZipFile(io.BytesIO(archive_bytes)) as zf:
+            for member in zf.infolist():
+                if member.filename.startswith("yt_dlp/") or member.filename.startswith("yt_dlp\\"):
+                    zf.extract(member, tmp_extract_dir)
+    else:
+        import tarfile
+        with tarfile.open(fileobj=io.BytesIO(archive_bytes), mode="r:*") as tf:
+            for member in tf.getmembers():
+                if "/yt_dlp/" in member.name or member.name.endswith("/yt_dlp") or member.name.startswith("yt_dlp/"):
+                    tf.extract(member, tmp_extract_dir)
+
+    extracted_package = os.path.join(tmp_extract_dir, "yt_dlp")
+    target_package = os.path.join(engine_dir, "yt_dlp")
+
+    if not os.path.exists(extracted_package):
+        for root, dirs, _ in os.walk(tmp_extract_dir):
+            if "yt_dlp" in dirs:
+                extracted_package = os.path.join(root, "yt_dlp")
+                break
+
+    if not os.path.exists(extracted_package):
+        raise RuntimeError("Paquet yt_dlp introuvable dans l'archive téléchargée.")
+
+    target_backup = os.path.join(engine_dir, "yt_dlp_backup")
+    if os.path.exists(target_backup):
+        shutil.rmtree(target_backup, ignore_errors=True)
+
+    if os.path.exists(target_package):
+        try:
+            os.rename(target_package, target_backup)
+        except OSError:
+            shutil.rmtree(target_package, ignore_errors=True)
+
+    shutil.move(extracted_package, target_package)
+    shutil.rmtree(tmp_extract_dir, ignore_errors=True)
+    if os.path.exists(target_backup):
+        shutil.rmtree(target_backup, ignore_errors=True)
+
+    version_file = os.path.join(engine_dir, "version.txt")
+    try:
+        with open(version_file, "w", encoding="utf-8") as vf:
+            vf.write(new_version)
+    except OSError:
+        pass
+
+    reload_ytdlp_module()
+
+is_updating_moteur = False
+
+def lancer_mise_a_jour_moteur(interactive=True):
+    global is_updating_moteur
+    if is_updating_moteur:
+        if interactive:
+            messagebox.showinfo("Mise à jour", "Une vérification de mise à jour est déjà en cours.")
+        return
+    threading.Thread(target=check_and_update_ytdlp, args=(interactive,), daemon=True).start()
+
+def check_and_update_ytdlp(interactive=False):
+    global is_updating_moteur
+    is_updating_moteur = True
+    current_ver = get_current_ytdlp_version()
+
+    if interactive:
+        safe_ui(bouton_maj_moteur.configure, state="disabled", text="Vérification...")
+        set_detail("Recherche d'une mise à jour de yt-dlp...")
+
+    try:
+        latest_ver, download_url = fetch_latest_ytdlp_info()
+        if not latest_ver or not download_url:
+            if interactive:
+                safe_ui(messagebox.showwarning, "Mise à jour", "Impossible de vérifier les mises à jour (connexion Internet indisponible).")
+                set_detail("Vérification de mise à jour échouée (hors ligne).")
+            return
+
+        if parse_version(latest_ver) > parse_version(current_ver):
+            safe_ui(version_label.configure, text=f"yt-dlp {current_ver} ➜ {latest_ver}")
+            safe_ui(bouton_maj_moteur.configure, state="disabled", text="Téléchargement...")
+            set_status("Mise à jour du moteur", WARNING)
+            set_detail(f"Téléchargement et installation de yt-dlp v{latest_ver}...")
+
+            download_and_apply_ytdlp_update(download_url, latest_ver)
+            new_ver = get_current_ytdlp_version()
+
+            safe_ui(version_label.configure, text=f"yt-dlp {new_ver}")
+            safe_ui(side_status_text.configure, text=f"yt-dlp v{new_ver} (à jour)\nffmpeg fusionne audio + vidéo")
+            set_status("Moteur à jour", SUCCESS)
+            set_detail(f"yt-dlp a été mis à jour avec succès vers la version {new_ver} !")
+
+            if interactive:
+                safe_ui(messagebox.showinfo, "Mise à jour réussie", f"yt-dlp a été mis à jour avec succès vers la version {new_ver} ! 🎉")
+        else:
+            safe_ui(version_label.configure, text=f"yt-dlp {current_ver}")
+            safe_ui(side_status_text.configure, text=f"yt-dlp v{current_ver} (à jour)\nffmpeg fusionne audio + vidéo")
+            if interactive:
+                set_status("Moteur à jour", SUCCESS)
+                set_detail(f"yt-dlp est déjà à jour (version {current_ver}).")
+                safe_ui(messagebox.showinfo, "À jour", f"yt-dlp est déjà à jour (version {current_ver}).")
+    except Exception as error:
+        if interactive:
+            set_status("Échec mise à jour", ERROR)
+            set_detail("Échec de la mise à jour de yt-dlp.")
+            safe_ui(messagebox.showerror, "Erreur de mise à jour", f"Impossible de mettre à jour yt-dlp :\n{error}")
+    finally:
+        is_updating_moteur = False
+        safe_ui(bouton_maj_moteur.configure, state="normal", text="🔄 Mettre à jour yt-dlp")
+
+# ==================== LOGIQUE DE TÉLÉCHARGEMENT ====================
 
 def get_runtime_dir():
     if getattr(sys, "frozen", False):
@@ -110,14 +335,14 @@ def explain_yt_dlp_error(error):
     if "sign in" in lower_message or "login" in lower_message or "cookies" in lower_message:
         return (
             "YouTube demande une session/cookies pour cette vidéo.\n\n"
-            "Essaie une autre vidéo publique, ou ajoute plus tard une option cookies."
+            "Essaie une autre vidéo publique ou clique sur '🔄 Mettre à jour yt-dlp' pour obtenir les derniers correctifs."
         )
 
     if "ffmpeg" in lower_message:
         return "Erreur ffmpeg. Le binaire inclus est introuvable ou ne démarre pas."
 
     if "requested format is not available" in lower_message or "format is not available" in lower_message:
-        return "La qualité demandée n'est pas disponible pour cette vidéo. Essaie une qualité plus basse."
+        return "La qualité demandée n'est pas disponible pour cette vidéo. Essaie une qualité plus basse ou mets à jour yt-dlp."
 
     if "private video" in lower_message:
         return "Cette vidéo est privée."
@@ -128,7 +353,13 @@ def explain_yt_dlp_error(error):
     if "unsupported url" in lower_message:
         return "URL non prise en charge par yt-dlp."
 
-    return message
+    if "signature" in lower_message or "n-sig" in lower_message or "extractor" in lower_message or "403" in lower_message:
+        return (
+            f"Erreur d'extraction YouTube ({message}).\n\n"
+            "YouTube a mis à jour ses algorithmes. Clique sur '🔄 Mettre à jour yt-dlp' dans la barre latérale pour appliquer les derniers correctifs."
+        )
+
+    return f"{message}\n\n(Astuce : Si le problème persiste, clique sur '🔄 Mettre à jour yt-dlp' dans la barre latérale.)"
 
 def lancer_telechargement():
     url = entree_url.get().strip()
@@ -305,7 +536,7 @@ qualite_var = ctk.StringVar(value="1080")
 
 sidebar = ctk.CTkFrame(fenetre, fg_color=SIDEBAR_COLOR, corner_radius=0)
 sidebar.grid(row=0, column=0, sticky="nsew")
-sidebar.grid_rowconfigure(6, weight=1)
+sidebar.grid_rowconfigure(7, weight=1)
 
 logo_card = ctk.CTkFrame(sidebar, fg_color=YOUTUBE_RED, corner_radius=10, width=72, height=50)
 logo_card.grid(row=0, column=0, sticky="w", padx=28, pady=(34, 0))
@@ -337,7 +568,7 @@ nom_app_label.grid(row=2, column=0, sticky="w", padx=28, pady=(0, 4))
 
 version_label = ctk.CTkLabel(
     sidebar,
-    text=f"yt-dlp {yt_dlp.version.__version__}",
+    text=f"yt-dlp {get_current_ytdlp_version()}",
     font=ctk.CTkFont(size=12, weight="bold"),
     text_color=WHITE,
     fg_color=YOUTUBE_RED_SOFT,
@@ -345,7 +576,20 @@ version_label = ctk.CTkLabel(
     padx=10,
     pady=4,
 )
-version_label.grid(row=3, column=0, sticky="w", padx=28, pady=(10, 24))
+version_label.grid(row=3, column=0, sticky="w", padx=28, pady=(10, 12))
+
+bouton_maj_moteur = ctk.CTkButton(
+    sidebar,
+    text="🔄 Mettre à jour yt-dlp",
+    command=lambda: lancer_mise_a_jour_moteur(interactive=True),
+    width=190,
+    height=34,
+    font=ctk.CTkFont(size=12, weight="bold"),
+    fg_color="#242424",
+    hover_color="#333333",
+    corner_radius=6,
+)
+bouton_maj_moteur.grid(row=4, column=0, sticky="ew", padx=28, pady=(0, 20))
 
 sidebar_hint = ctk.CTkLabel(
     sidebar,
@@ -354,7 +598,7 @@ sidebar_hint = ctk.CTkLabel(
     text_color=TEXT_MUTED,
     justify="left",
 )
-sidebar_hint.grid(row=4, column=0, sticky="w", padx=28, pady=(0, 22))
+sidebar_hint.grid(row=5, column=0, sticky="w", padx=28, pady=(0, 22))
 
 bouton_plein_ecran = ctk.CTkButton(
     sidebar,
@@ -366,10 +610,10 @@ bouton_plein_ecran = ctk.CTkButton(
     hover_color="#303030",
     corner_radius=8,
 )
-bouton_plein_ecran.grid(row=5, column=0, sticky="ew", padx=28, pady=(0, 12))
+bouton_plein_ecran.grid(row=6, column=0, sticky="ew", padx=28, pady=(0, 12))
 
 side_status = ctk.CTkFrame(sidebar, fg_color=PANEL_COLOR, corner_radius=8)
-side_status.grid(row=6, column=0, sticky="new", padx=28, pady=(8, 0))
+side_status.grid(row=7, column=0, sticky="new", padx=28, pady=(8, 0))
 
 side_status_title = ctk.CTkLabel(
     side_status,
@@ -381,7 +625,7 @@ side_status_title.grid(row=0, column=0, sticky="w", padx=16, pady=(14, 2))
 
 side_status_text = ctk.CTkLabel(
     side_status,
-    text="yt-dlp local\nffmpeg fusionne audio + vidéo",
+    text=f"yt-dlp v{get_current_ytdlp_version()}\nffmpeg fusionne audio + vidéo",
     font=ctk.CTkFont(size=12),
     text_color=TEXT_MUTED,
     justify="left",
@@ -622,7 +866,7 @@ warning_panel.grid(row=4, column=0, sticky="ew", padx=24, pady=(14, 0))
 
 warning_text = ctk.CTkLabel(
     warning_panel,
-    text="Certaines vidéos peuvent demander une connexion ou des cookies.",
+    text="Certaines vidéos peuvent demander une connexion ou une version à jour de yt-dlp.",
     font=ctk.CTkFont(size=12),
     text_color="#ffb3bd",
     justify="left",
@@ -646,4 +890,9 @@ quit_button = ctk.CTkButton(
 quit_button.grid(row=0, column=0, sticky="ew")
 
 set_fullscreen(True)
+
+# Vérification silencieuse et automatique des mises à jour 1.5 seconde après le lancement
+fenetre.after(1500, lambda: lancer_mise_a_jour_moteur(interactive=False))
+
 fenetre.mainloop()
+

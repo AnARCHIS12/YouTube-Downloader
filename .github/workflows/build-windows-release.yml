@@ -68,6 +68,6 @@ jobs:
         run: |
           gh release view $env:RELEASE_TAG --repo $env:GITHUB_REPOSITORY
           if ($LASTEXITCODE -ne 0) {
-            gh release create $env:RELEASE_TAG --repo $env:GITHUB_REPOSITORY --title "YouTube Downloader 1.0.0" --notes "Version Windows compilee automatiquement avec yt-dlp, ffmpeg et ffprobe integres."
+            gh release create $env:RELEASE_TAG --repo $env:GITHUB_REPOSITORY --title "YouTube Downloader $env:RELEASE_TAG" --notes "Version Windows compilee automatiquement avec yt-dlp, ffmpeg et ffprobe integres."
           }
           gh release upload $env:RELEASE_TAG dist/packages/YouTubeDownloaderSetup.exe --repo $env:GITHUB_REPOSITORY --clobber

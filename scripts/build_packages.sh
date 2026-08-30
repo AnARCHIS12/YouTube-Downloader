@@ -3,7 +3,7 @@ set -euo pipefail
 
 APP_NAME="youtube-downloader"
 BIN_NAME="YouTubeDownloader"
-VERSION="${VERSION:-1.0.0}"
+VERSION="${VERSION:-1.1.0}"
 ARCH_DEB="${ARCH_DEB:-amd64}"
 ARCH_RPM="${ARCH_RPM:-x86_64}"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

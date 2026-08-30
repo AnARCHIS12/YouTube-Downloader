@@ -68,7 +68,17 @@ datas = [
 ]
 datas += collect_data_files("customtkinter")
 
-hiddenimports = collect_submodules("yt_dlp")
+hiddenimports = collect_submodules("yt_dlp") + [
+    "urllib.request",
+    "urllib.error",
+    "urllib.parse",
+    "zipfile",
+    "tarfile",
+    "json",
+    "ssl",
+    "shutil",
+    "importlib",
+]
 
 binaries = []
 for tool in ("ffmpeg", "ffprobe"):
