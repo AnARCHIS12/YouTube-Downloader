@@ -14,13 +14,18 @@ PKG_DIR="$DIST_DIR/packages"
 
 cd "$ROOT_DIR"
 
-command -v python >/dev/null
+PYTHON_BIN="python3"
+if command -v python >/dev/null 2>&1; then
+    PYTHON_BIN="python"
+fi
+
+command -v "$PYTHON_BIN" >/dev/null
 command -v dpkg-deb >/dev/null
 command -v rpmbuild >/dev/null
 command -v ffmpeg >/dev/null
 command -v ffprobe >/dev/null
 
-python - <<'PY'
+"$PYTHON_BIN" - <<'PY'
 import importlib.util
 missing = [name for name in ("PyInstaller", "customtkinter", "yt_dlp") if importlib.util.find_spec(name) is None]
 if missing:
@@ -30,7 +35,7 @@ PY
 rm -rf "$BUILD_DIR" "$DIST_DIR/$BIN_NAME"
 mkdir -p "$PKG_DIR"
 
-python -m PyInstaller --clean --noconfirm YouTubeDownloader.spec
+"$PYTHON_BIN" -m PyInstaller --clean --noconfirm YouTubeDownloader.spec
 
 rm -rf "$APPDIR"
 mkdir -p \
