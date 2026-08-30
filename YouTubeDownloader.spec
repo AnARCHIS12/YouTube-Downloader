@@ -67,6 +67,10 @@ datas = [
     ("assets/youtube-logo.ico", "assets"),
 ]
 datas += collect_data_files("customtkinter")
+try:
+    datas += collect_data_files("certifi")
+except Exception:
+    pass
 
 hiddenimports = collect_submodules("yt_dlp") + [
     "urllib.request",
@@ -78,6 +82,7 @@ hiddenimports = collect_submodules("yt_dlp") + [
     "ssl",
     "shutil",
     "importlib",
+    "certifi",
 ]
 
 binaries = []

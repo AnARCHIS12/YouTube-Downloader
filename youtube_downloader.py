@@ -3,14 +3,22 @@ import json
 import os
 import re
 import shutil
+import ssl
 import sys
 import threading
 import tkinter as tk
 from tkinter import filedialog, messagebox
+import urllib.error
 import urllib.request
 import zipfile
 
 import customtkinter as ctk
+
+# Contournement des environnements sans magasins de certificats CA
+try:
+    ssl._create_default_https_context = ssl._create_unverified_context
+except Exception:
+    pass
 
 # ==================== GESTION DYNAMIQUE DU MOTEUR (YT-DLP) ====================
 
@@ -55,6 +63,36 @@ WHITE = "#ffffff"
 
 # ==================== LOGIQUE DU MOTEUR YT-DLP & MISES À JOUR ====================
 
+def get_ssl_context():
+    """Crée un contexte SSL utilisant certifi si présent, sinon un contexte sans vérification."""
+    try:
+        import certifi
+        return ssl.create_default_context(cafile=certifi.where())
+    except Exception:
+        pass
+    try:
+        return ssl._create_unverified_context()
+    except Exception:
+        return None
+
+def http_get_data(url, timeout=15):
+    """Effectue une requête HTTP GET avec gestion robuste des certificats SSL."""
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
+    }
+    req = urllib.request.Request(url, headers=headers)
+    ctx = get_ssl_context()
+    try:
+        if ctx:
+            return urllib.request.urlopen(req, timeout=timeout, context=ctx)
+        return urllib.request.urlopen(req, timeout=timeout)
+    except (ssl.SSLError, ssl.CertificateError, urllib.error.URLError):
+        try:
+            unverified_ctx = ssl._create_unverified_context()
+            return urllib.request.urlopen(req, timeout=timeout, context=unverified_ctx)
+        except Exception:
+            raise
+
 def parse_version(v_str):
     """Transforme une chaîne de version en tuple d'entiers pour comparaison fiable."""
     if not v_str:
@@ -87,12 +125,11 @@ def reload_ytdlp_module():
 
 def fetch_latest_ytdlp_info():
     """Récupère les informations de la dernière version de yt-dlp depuis PyPI ou GitHub."""
-    headers = {"User-Agent": "YouTube-Downloader/1.0 (Desktop App)"}
+    errors = []
 
     # 1. Tentative principale via l'API PyPI
     try:
-        req = urllib.request.Request("https://pypi.org/pypi/yt-dlp/json", headers=headers)
-        with urllib.request.urlopen(req, timeout=12) as resp:
+        with http_get_data("https://pypi.org/pypi/yt-dlp/json", timeout=12) as resp:
             data = json.loads(resp.read().decode("utf-8"))
             version = data.get("info", {}).get("version")
             wheel_url = None
@@ -108,36 +145,38 @@ def fetch_latest_ytdlp_info():
 
             download_url = wheel_url or tar_url
             if version and download_url:
-                return version, download_url
-    except Exception:
-        pass
+                return version, download_url, None
+    except Exception as e:
+        errors.append(f"PyPI: {e}")
 
-    # 2. Tentative de secours via l'API GitHub Releases
+    # 2. Tentative de secours via la redirection GitHub Releases
     try:
-        req = urllib.request.Request("https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest", headers=headers)
-        with urllib.request.urlopen(req, timeout=12) as resp:
+        with http_get_data("https://github.com/yt-dlp/yt-dlp/releases/latest", timeout=12) as resp:
+            final_url = resp.geturl()
+            tag = final_url.rstrip("/").split("/")[-1].lstrip("v")
+            if tag and "." in tag:
+                download_url = f"https://github.com/yt-dlp/yt-dlp/releases/download/{tag}/yt-dlp.tar.gz"
+                return tag, download_url, None
+    except Exception as e:
+        errors.append(f"GitHub: {e}")
+
+    # 3. Tentative de secours via l'API GitHub Releases
+    try:
+        with http_get_data("https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest", timeout=12) as resp:
             data = json.loads(resp.read().decode("utf-8"))
             tag_name = data.get("tag_name", "").lstrip("v")
-            download_url = None
-            for asset in data.get("assets", []):
-                name = asset.get("name", "")
-                if name.endswith(".whl"):
-                    download_url = asset.get("browser_download_url")
-                    break
-            if not download_url:
-                download_url = data.get("zipball_url") or data.get("tarball_url")
-            if tag_name and download_url:
-                return tag_name, download_url
-    except Exception:
-        pass
+            if tag_name:
+                download_url = f"https://github.com/yt-dlp/yt-dlp/releases/download/{data.get('tag_name')}/yt-dlp.tar.gz"
+                return tag_name, download_url, None
+    except Exception as e:
+        errors.append(f"GitHub API: {e}")
 
-    return None, None
+    error_summary = " | ".join(errors) if errors else "Serveur de mise à jour injoignable"
+    return None, None, error_summary
 
 def download_and_apply_ytdlp_update(download_url, new_version):
     """Télécharge l'archive yt-dlp et l'extrait dans le répertoire moteur utilisateur."""
-    headers = {"User-Agent": "YouTube-Downloader/1.0 (Desktop App)"}
-    req = urllib.request.Request(download_url, headers=headers)
-    with urllib.request.urlopen(req, timeout=45) as resp:
+    with http_get_data(download_url, timeout=45) as resp:
         archive_bytes = resp.read()
 
     engine_dir = get_engine_dir()
@@ -158,18 +197,19 @@ def download_and_apply_ytdlp_update(download_url, new_version):
                 if "/yt_dlp/" in member.name or member.name.endswith("/yt_dlp") or member.name.startswith("yt_dlp/"):
                     tf.extract(member, tmp_extract_dir)
 
-    extracted_package = os.path.join(tmp_extract_dir, "yt_dlp")
-    target_package = os.path.join(engine_dir, "yt_dlp")
+    extracted_package = None
+    for root, dirs, files in os.walk(tmp_extract_dir):
+        if "yt_dlp" in dirs and os.path.exists(os.path.join(root, "yt_dlp", "__init__.py")):
+            extracted_package = os.path.join(root, "yt_dlp")
+            break
+        elif os.path.basename(root) == "yt_dlp" and "__init__.py" in files:
+            extracted_package = root
+            break
 
-    if not os.path.exists(extracted_package):
-        for root, dirs, _ in os.walk(tmp_extract_dir):
-            if "yt_dlp" in dirs:
-                extracted_package = os.path.join(root, "yt_dlp")
-                break
-
-    if not os.path.exists(extracted_package):
+    if not extracted_package or not os.path.exists(extracted_package):
         raise RuntimeError("Paquet yt_dlp introuvable dans l'archive téléchargée.")
 
+    target_package = os.path.join(engine_dir, "yt_dlp")
     target_backup = os.path.join(engine_dir, "yt_dlp_backup")
     if os.path.exists(target_backup):
         shutil.rmtree(target_backup, ignore_errors=True)
@@ -214,11 +254,11 @@ def check_and_update_ytdlp(interactive=False):
         set_detail("Recherche d'une mise à jour de yt-dlp...")
 
     try:
-        latest_ver, download_url = fetch_latest_ytdlp_info()
+        latest_ver, download_url, error_msg = fetch_latest_ytdlp_info()
         if not latest_ver or not download_url:
             if interactive:
-                safe_ui(messagebox.showwarning, "Mise à jour", "Impossible de vérifier les mises à jour (connexion Internet indisponible).")
-                set_detail("Vérification de mise à jour échouée (hors ligne).")
+                safe_ui(messagebox.showwarning, "Mise à jour", f"Impossible de vérifier les mises à jour :\n{error_msg}")
+                set_detail(f"Vérification de mise à jour échouée ({error_msg}).")
             return
 
         if parse_version(latest_ver) > parse_version(current_ver):
@@ -421,6 +461,7 @@ def telecharger_video(url, qualite, dossier_sortie):
         "quiet": True,
         "no_warnings": True,
         "noplaylist": True,
+        "nocheckcertificate": True,
     }
 
     ffmpeg_location = get_ffmpeg_location()
