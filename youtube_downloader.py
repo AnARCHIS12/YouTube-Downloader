@@ -262,6 +262,12 @@ def check_and_update_ytdlp(interactive=False):
                 set_detail(f"Vérification de mise à jour échouée ({error_msg}).")
             return
 
+        # Vérification et téléchargement de FFmpeg si manquant
+        if not get_ffmpeg_location():
+            if interactive:
+                set_detail("Téléchargement du composant FFmpeg portable...")
+            ensure_static_ffmpeg()
+
         if parse_version(latest_ver) > parse_version(current_ver):
             safe_ui(version_label.configure, text=f"yt-dlp {current_ver} ➜ {latest_ver}")
             safe_ui(bouton_maj_moteur.configure, state="disabled", text="Téléchargement...")
@@ -522,10 +528,10 @@ def telecharger_video(url, qualite, dossier_sortie):
             set_status("Fusion audio/vidéo", WARNING)
             set_detail("ffmpeg prépare le fichier final.")
 
+    ffmpeg_location = get_ffmpeg_location()
+
     ydl_opts = {
-        "format": f"bestvideo[height<={qualite}]+bestaudio/best[height<={qualite}]/best",
         "outtmpl": os.path.join(dossier_sortie, "%(title).200s.%(ext)s"),
-        "merge_output_format": "mp4",
         "progress_hooks": [progress_hook],
         "quiet": True,
         "no_warnings": True,
@@ -533,9 +539,13 @@ def telecharger_video(url, qualite, dossier_sortie):
         "nocheckcertificate": True,
     }
 
-    ffmpeg_location = get_ffmpeg_location()
     if ffmpeg_location:
         ydl_opts["ffmpeg_location"] = ffmpeg_location
+        ydl_opts["format"] = f"bestvideo[height<={qualite}]+bestaudio/best[height<={qualite}]/best"
+        ydl_opts["merge_output_format"] = "mp4"
+    else:
+        # Sans FFmpeg : télécharger le meilleur flux combiné audio+vidéo sans étape de fusion requise
+        ydl_opts["format"] = f"best[height<={qualite}][ext=mp4]/best[height<={qualite}]/best"
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
