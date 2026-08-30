@@ -5,207 +5,122 @@
 </p>
 
 <p align="center">
-  Une application de bureau CustomTkinter au style YouTube moderne pour télécharger des vidéos avec <code>yt-dlp</code>. Le projet inclut aussi une version mobile Android en Flutter. Les paquets compilés embarquent <code>ffmpeg</code>, et l'APK Android utilise <code>yt-dlp</code> + <code>ffmpeg</code> intégrés.
+  Une application complete (Desktop et Mobile Android) au style YouTube moderne pour telecharger des videos avec <code>yt-dlp</code>. Les versions integrent la <strong>mise a jour automatique et a chaud de yt-dlp</strong> ainsi que <code>ffmpeg</code> embarque pour garantir un fonctionnement permanent sans interruption.
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/YouTube-Downloader-FF0033?style=for-the-badge&logo=youtube&logoColor=white" alt="YouTube Downloader" />
   <br />
+  <img src="https://img.shields.io/badge/Release-v1.1.0-22c55e?style=flat-square" alt="Release v1.1.0" />
   <img src="https://img.shields.io/badge/Python-3.10+-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python 3.10+" />
   <img src="https://img.shields.io/badge/Flutter-Android-02569B?style=flat-square&logo=flutter&logoColor=white" alt="Flutter Android" />
-  <img src="https://img.shields.io/badge/yt--dlp-2026.03.17-FF0033?style=flat-square&logo=youtube&logoColor=white" alt="yt-dlp" />
+  <img src="https://img.shields.io/badge/yt--dlp-Auto--Update-FF0033?style=flat-square&logo=youtube&logoColor=white" alt="yt-dlp Auto-Update" />
   <img src="https://img.shields.io/badge/CustomTkinter-UI-111111?style=flat-square" alt="CustomTkinter" />
   <img src="https://img.shields.io/badge/ffmpeg-bundled-007808?style=flat-square&logo=ffmpeg&logoColor=white" alt="ffmpeg bundled" />
   <img src="https://img.shields.io/badge/Fullscreen-F11-303030?style=flat-square" alt="Fullscreen F11" />
 </p>
 
 <p align="center">
-  <strong>Interface plein écran rouge/noir sur bureau, avec une app Android Flutter assortie.</strong>
+  <strong>Interface plein ecran sombre rouge/noir sur bureau, avec application Android Flutter assortie.</strong>
 </p>
 
-## Prérequis pour lancer le code source
+---
 
-- Python 3.10+
-- `customtkinter`
-- `yt-dlp`
-- `ffmpeg`
+## Fonctionnalites cles
 
-## Installation
+- **Mise a jour automatique du moteur yt-dlp** : L'application verifie en arriere-plan et installe les derniers correctifs de YouTube au lancement et a la demande via un bouton dedie.
+- **Qualite ajustable** : De 360p jusqu'a 4K (2160p) ou extraction Audio MP3.
+- **Tout-en-un et portable** : FFmpeg et FFprobe sont directement embarques et configures.
+- **Multi-plateforme** :
+  - **Windows** : Installateur autonome `.exe` (Inno Setup)
+  - **Linux** : Paquets natifs `.deb` (Debian/Ubuntu), `.rpm` (Fedora/RHEL/openSUSE sans conflit de dependances) et archive portable `.tar.gz`.
+  - **Android** : Application Flutter native avec selection du stockage et moteur yt-dlp integre.
+
+---
+
+## Version Desktop (Python / CustomTkinter)
+
+### Lancer depuis les sources
+
+**Prerequis** : Python 3.10+, ffmpeg
 
 ```bash
-python -m pip install -U customtkinter yt-dlp
-```
+# Installation des dependances
+python3 -m pip install -U customtkinter yt-dlp
 
-Sur Fedora, `ffmpeg` doit aussi être installé pour lancer le code source directement.
-
-## Utilisation
-
-```bash
+# Lancement
 python3 youtube_downloader.py
 ```
 
-L'application démarre en plein écran avec une interface sombre rouge/noir inspirée de YouTube.
+### Utilisation
 
-1. Collez un lien YouTube ou utilisez **Coller**.
-2. Choisissez la qualité maximale avec le sélecteur.
-3. Les vidéos vont par défaut dans `Vidéos/YouTube Downloader`. Sélectionnez un autre dossier si besoin.
-4. Cliquez sur **Télécharger**.
+1. Collez un lien YouTube avec le bouton **Coller** ou `Ctrl+V`.
+2. Choisissez la resolution maximale desiree.
+3. Choisissez le dossier de destination (par defaut `Videos/YouTube Downloader`).
+4. Cliquez sur **Telecharger**.
+5. Raccourcis : **F11** pour basculer en plein ecran, **Echap** pour quitter le plein ecran.
 
-Raccourcis :
+### Mise a jour du moteur yt-dlp
 
-- **F11** : basculer plein écran / fenêtre
-- **Échap** : sortir du plein écran
+Si YouTube modifie ses algorithmes ou bloque les telechargements :
+- **Automatique** : L'application recherche et applique silencieusement les nouvelles versions au demarrage.
+- **Manuelle** : Cliquez sur le bouton **Mettre a jour yt-dlp** dans la barre laterale pour recharger immediatement la derniere version sans redemarrer le programme.
 
-La zone **Activité** affiche la progression du téléchargement et l'étape de fusion audio/vidéo.
+---
 
-## Créer les paquets Linux
+## Compilation et Paquets Desktop
 
-Installez les dépendances de build :
+### Paquets Linux (.deb, .rpm, .tar.gz)
 
-```bash
-python -m pip install -r requirements-build.txt
-```
-
-Puis générez l'application compilée avec `yt-dlp`, `ffmpeg` et `ffprobe` embarqués, le `.deb`, le `.rpm` et une archive Linux :
+Installez les dependances de build puis lancez le script :
 
 ```bash
+python3 -m pip install -r requirements-build.txt
 ./scripts/build_packages.sh
 ```
 
-Les fichiers sortent dans :
+Les paquets generes se trouvent dans `dist/packages/` :
+- `youtube-downloader_1.1.0_amd64.deb`
+- `youtube-downloader-1.1.0-1.x86_64.rpm`
+- `youtube-downloader-1.1.0-linux-x86_64.tar.gz`
 
-```bash
-dist/packages/
-```
+### Installateur Windows (.exe)
 
-Le logo d'application est installé depuis :
-
-```bash
-assets/youtube-logo.svg
-```
-
-Les paquets compilés embarquent `ffmpeg` et `ffprobe` depuis la machine de build pour fusionner l'audio et la vidéo.
-
-## Page GitHub Pages
-
-La page de présentation est dans :
-
-```text
-index.html
-```
-
-Pour la publier :
-
-1. Envoyez le dépôt sur GitHub.
-2. Ouvrez **Settings** > **Pages**.
-3. Dans **Build and deployment**, choisissez **Deploy from a branch**.
-4. Sélectionnez la branche `main` et le dossier `/ (root)`.
-5. Créez une release GitHub et ajoutez les fichiers de `dist/packages/`.
-6. Pour Windows, ajoutez aussi `YouTubeDownloaderSetup.exe` dans la release après l'avoir compilé depuis Windows.
-
-Les boutons de téléchargement de la page pointent vers la release GitHub `v1.0.0` pour Debian/Ubuntu, Fedora/RPM, Linux portable et Windows.
-
-## Créer l'installateur Windows
-
-L'installateur Windows doit être compilé depuis Windows pour embarquer les bons binaires `.exe` et `.dll`.
-
-Installez d'abord :
-
-- Python 3.10+
-- ffmpeg pour Windows, avec `ffmpeg.exe` et `ffprobe.exe` dans le `PATH`
-- Inno Setup 6 pour créer l'installateur
+Sur Windows (PowerShell avec Inno Setup 6 et ffmpeg installes) :
 
 ```powershell
 .\scripts\build_windows.ps1
 ```
 
-Les fichiers Windows seront dans :
+Genere `dist\packages\YouTubeDownloaderSetup.exe`.
 
-```text
-dist\YouTubeDownloader.exe
-dist\packages\YouTubeDownloaderSetup.exe
-```
+### Compilation automatique sur GitHub Actions
 
-Depuis GitHub, l'installateur peut aussi être généré automatiquement :
+Le workflow GitHub Actions [`.github/workflows/build-windows-release.yml`](.github/workflows/build-windows-release.yml) compile automatiquement l'ensemble des paquets Linux et Windows a chaque creation de tag de release (`v*`).
 
-1. Ouvrez l'onglet **Actions** du dépôt.
-2. Lancez **Build Windows installer**.
-3. Gardez le tag `v1.0.0`.
-4. Le workflow compile `YouTubeDownloaderSetup.exe` et l'ajoute à la release GitHub.
+---
 
-## Mise à jour yt-dlp
+## Version Mobile (Android Flutter)
 
-Si YouTube change quelque chose et que les téléchargements échouent :
+L'application Android se trouve dans le dossier `mobile/`. Elle propose une interface similaire et exploite `youtubedl-android` avec mise a jour en ligne de yt-dlp.
 
-```bash
-python -m pip install -U yt-dlp
-```
-
-## Version mobile Flutter
-
-La version mobile Android est dans :
-
-```text
-mobile/
-```
-
-Elle contient une application Flutter rouge/noir avec le logo YouTube Downloader. Sur Android, le téléchargement réel est branché avec `youtubedl-android`, `yt-dlp` et `ffmpeg`.
-
-Fonctions mobiles :
-
-- coller un lien YouTube ;
-- choisir la qualité : `360p`, `480p`, `720p`, `1080p`, `1440p`, `2160p` ou `Audio` ;
-- choisir le dossier de sortie avec le sélecteur Android ;
-- télécharger et fusionner audio/vidéo avec `ffmpeg` intégré ;
-- afficher le détail complet si Android ou `yt-dlp` renvoie une erreur ;
-- mettre à jour automatiquement `yt-dlp` au lancement pour rester compatible avec YouTube.
-
-Par défaut, les fichiers sortent dans :
-
-```text
-Downloads/YouTube Downloader
-```
-
-Si vous choisissez un autre dossier dans l'application, Android garde ce choix pour les prochains téléchargements.
-
-## Compiler l'APK Android
-
-Installez d'abord Flutter et Android Studio, puis vérifiez que Flutter voit bien Android :
-
-```bash
-flutter doctor
-```
-
-Ensuite, depuis le dépôt :
+### Compiler l'APK Android
 
 ```bash
 cd mobile
 flutter pub get
-flutter analyze
-flutter test
 flutter build apk --release
 ```
 
-L'APK final sera créé ici :
-
+L'APK genere sera disponible dans :
 ```text
 mobile/build/app/outputs/flutter-apk/app-release.apk
 ```
 
-Pour une version de test plus rapide :
+---
 
-```bash
-flutter build apk --debug
-```
+## Site Web et GitHub Pages
 
-Le fichier sera ici :
+Le site de presentation est defini dans [`index.html`](index.html). Il integre les liens de telechargement directs vers la derniere release GitHub (`v1.1.0`).
 
-```text
-mobile/build/app/outputs/flutter-apk/app-debug.apk
-```
 
-## Installer sur un téléphone Android
-
-Copiez `app-release.apk` sur le téléphone, ouvrez-le, puis autorisez l'installation depuis une source inconnue si Android le demande. Si une ancienne APK est deja installee, desinstallez-la puis installez la nouvelle version.
-
-Si le telephone affiche une erreur de telechargement, l'application montre maintenant le detail technique dans la zone **Activite**. Ce message permet de savoir si le probleme vient du lien YouTube, du reseau, du dossier choisi ou de `yt-dlp`.
