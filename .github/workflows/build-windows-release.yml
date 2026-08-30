@@ -64,7 +64,7 @@ jobs:
       - name: Install Linux build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y ffmpeg rpm dpkg
+          sudo apt-get install -y ffmpeg rpm dpkg curl xz-utils tar
 
       - name: Install Python dependencies
         run: |

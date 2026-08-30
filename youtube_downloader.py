@@ -4,6 +4,7 @@ import os
 import re
 import shutil
 import ssl
+import subprocess
 import sys
 import threading
 import tkinter as tk
@@ -293,7 +294,59 @@ def check_and_update_ytdlp(interactive=False):
         is_updating_moteur = False
         safe_ui(bouton_maj_moteur.configure, state="normal", text="🔄 Mettre à jour yt-dlp")
 
-# ==================== LOGIQUE DE TÉLÉCHARGEMENT ====================
+# ==================== LOGIQUE DE TÉLÉCHARGEMENT & FFMPEG ====================
+
+def is_ffmpeg_working(binary_path):
+    """Vérifie si le binaire ffmpeg existe et s'exécute correctement sur le système hôte."""
+    if not binary_path or not os.path.isfile(binary_path):
+        return False
+    try:
+        res = subprocess.run(
+            [binary_path, "-version"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=5
+        )
+        return res.returncode == 0
+    except Exception:
+        return False
+
+def ensure_static_ffmpeg():
+    """Télécharge un binaire FFmpeg statique portable si aucun FFmpeg fonctionnel n'est présent."""
+    engine_dir = get_engine_dir()
+    ffmpeg_bin = os.path.join(engine_dir, "ffmpeg.exe" if os.name == "nt" else "ffmpeg")
+    if is_ffmpeg_working(ffmpeg_bin):
+        return engine_dir
+
+    try:
+        if os.name == "nt":
+            url = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip"
+            with http_get_data(url, timeout=60) as resp:
+                data = resp.read()
+            with zipfile.ZipFile(io.BytesIO(data)) as zf:
+                for member in zf.infolist():
+                    filename = os.path.basename(member.filename)
+                    if filename in ("ffmpeg.exe", "ffprobe.exe"):
+                        with zf.open(member) as src, open(os.path.join(engine_dir, filename), "wb") as dst:
+                            dst.write(src.read())
+        else:
+            url = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz"
+            with http_get_data(url, timeout=60) as resp:
+                data = resp.read()
+            import tarfile
+            with tarfile.open(fileobj=io.BytesIO(data), mode="r:*") as tf:
+                for member in tf.getmembers():
+                    filename = os.path.basename(member.name)
+                    if filename in ("ffmpeg", "ffprobe"):
+                        with tf.extractfile(member) as src, open(os.path.join(engine_dir, filename), "wb") as dst:
+                            dst.write(src.read())
+                        os.chmod(os.path.join(engine_dir, filename), 0o755)
+
+        if is_ffmpeg_working(ffmpeg_bin):
+            return engine_dir
+    except Exception as e:
+        print("Téléchargement FFmpeg statique impossible:", e)
+    return None
 
 def get_runtime_dir():
     if getattr(sys, "frozen", False):
@@ -302,20 +355,33 @@ def get_runtime_dir():
 
 def get_ffmpeg_location():
     runtime_dir = get_runtime_dir()
+    engine_dir = get_engine_dir()
+    exe_dir = os.path.dirname(sys.executable)
+
     candidates = [
         os.path.join(runtime_dir, "ffmpeg"),
         os.path.join(runtime_dir, "ffmpeg.exe"),
-        os.path.join(os.path.dirname(sys.executable), "ffmpeg"),
-        os.path.join(os.path.dirname(sys.executable), "ffmpeg.exe"),
+        os.path.join(engine_dir, "ffmpeg"),
+        os.path.join(engine_dir, "ffmpeg.exe"),
+        os.path.join(exe_dir, "ffmpeg"),
+        os.path.join(exe_dir, "ffmpeg.exe"),
+        "/usr/lib/youtube-downloader/ffmpeg",
+        "/usr/local/bin/ffmpeg",
+        "/usr/bin/ffmpeg",
     ]
 
     for candidate in candidates:
-        if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+        if is_ffmpeg_working(candidate):
             return os.path.dirname(candidate)
 
     ffmpeg_path = shutil.which("ffmpeg")
-    if ffmpeg_path:
+    if ffmpeg_path and is_ffmpeg_working(ffmpeg_path):
         return os.path.dirname(ffmpeg_path)
+
+    # Si aucun binaire fonctionnel n'est présent, tentative de téléchargement automatique
+    static_dir = ensure_static_ffmpeg()
+    if static_dir and is_ffmpeg_working(os.path.join(static_dir, "ffmpeg.exe" if os.name == "nt" else "ffmpeg")):
+        return static_dir
 
     return None
 
@@ -375,11 +441,8 @@ def explain_yt_dlp_error(error):
     if "sign in" in lower_message or "login" in lower_message or "cookies" in lower_message:
         return (
             "YouTube demande une session/cookies pour cette vidéo.\n\n"
-            "Essaie une autre vidéo publique ou clique sur '🔄 Mettre à jour yt-dlp' pour obtenir les derniers correctifs."
+            "Essaie une autre vidéo publique ou clique sur 'Mettre à jour yt-dlp' pour obtenir les derniers correctifs."
         )
-
-    if "ffmpeg" in lower_message:
-        return "Erreur ffmpeg. Le binaire inclus est introuvable ou ne démarre pas."
 
     if "requested format is not available" in lower_message or "format is not available" in lower_message:
         return "La qualité demandée n'est pas disponible pour cette vidéo. Essaie une qualité plus basse ou mets à jour yt-dlp."
@@ -396,10 +459,16 @@ def explain_yt_dlp_error(error):
     if "signature" in lower_message or "n-sig" in lower_message or "extractor" in lower_message or "403" in lower_message:
         return (
             f"Erreur d'extraction YouTube ({message}).\n\n"
-            "YouTube a mis à jour ses algorithmes. Clique sur '🔄 Mettre à jour yt-dlp' dans la barre latérale pour appliquer les derniers correctifs."
+            "YouTube a mis à jour ses algorithmes. Clique sur 'Mettre à jour yt-dlp' dans la barre latérale pour appliquer les derniers correctifs."
         )
 
-    return f"{message}\n\n(Astuce : Si le problème persiste, clique sur '🔄 Mettre à jour yt-dlp' dans la barre latérale.)"
+    if "ffmpeg" in lower_message:
+        return (
+            f"Erreur ffmpeg ({message}).\n\n"
+            "Le binaire ffmpeg n'a pas pu traiter le fichier. Vérifiez que ffmpeg est installé sur votre système ou réessayez avec une autre qualité."
+        )
+
+    return f"{message}\n\n(Astuce : Si le problème persiste, clique sur 'Mettre à jour yt-dlp' dans la barre latérale.)"
 
 def lancer_telechargement():
     url = entree_url.get().strip()

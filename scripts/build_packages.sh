@@ -49,19 +49,28 @@ cp "$DIST_DIR/$BIN_NAME" "$APPDIR/usr/lib/$APP_NAME/$BIN_NAME"
 FFMPEG_STATIC_DIR="$BUILD_DIR/ffmpeg_static"
 if [ ! -f "$FFMPEG_STATIC_DIR/ffmpeg" ] || [ ! -f "$FFMPEG_STATIC_DIR/ffprobe" ]; then
   mkdir -p "$FFMPEG_STATIC_DIR"
-  echo "Tentative de telechargement de ffmpeg statique Linux..."
-  if curl -sSL "https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz" -o "$BUILD_DIR/ffmpeg.tar.xz" 2>/dev/null && [ -s "$BUILD_DIR/ffmpeg.tar.xz" ]; then
-    tar -xJf "$BUILD_DIR/ffmpeg.tar.xz" -C "$FFMPEG_STATIC_DIR" --strip-components=1 2>/dev/null || true
+  echo "Telechargement de FFmpeg statique Linux multi-distribution..."
+  if curl -sSL "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz" -o "$BUILD_DIR/ffmpeg.tar.xz" 2>/dev/null && [ -s "$BUILD_DIR/ffmpeg.tar.xz" ]; then
+    tar -xJf "$BUILD_DIR/ffmpeg.tar.xz" -C "$FFMPEG_STATIC_DIR" 2>/dev/null || true
+    find "$FFMPEG_STATIC_DIR" -type f -name "ffmpeg" -exec cp {} "$FFMPEG_STATIC_DIR/ffmpeg" \; 2>/dev/null || true
+    find "$FFMPEG_STATIC_DIR" -type f -name "ffprobe" -exec cp {} "$FFMPEG_STATIC_DIR/ffprobe" \; 2>/dev/null || true
+  elif curl -sSL "https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz" -o "$BUILD_DIR/ffmpeg.tar.xz" 2>/dev/null && [ -s "$BUILD_DIR/ffmpeg.tar.xz" ]; then
+    tar -xJf "$BUILD_DIR/ffmpeg.tar.xz" -C "$FFMPEG_STATIC_DIR" 2>/dev/null || true
+    find "$FFMPEG_STATIC_DIR" -type f -name "ffmpeg" -exec cp {} "$FFMPEG_STATIC_DIR/ffmpeg" \; 2>/dev/null || true
+    find "$FFMPEG_STATIC_DIR" -type f -name "ffprobe" -exec cp {} "$FFMPEG_STATIC_DIR/ffprobe" \; 2>/dev/null || true
   fi
 fi
 
 if [ -f "$FFMPEG_STATIC_DIR/ffmpeg" ] && [ -f "$FFMPEG_STATIC_DIR/ffprobe" ]; then
+  echo "Utilisation de FFmpeg statique portable."
   cp "$FFMPEG_STATIC_DIR/ffmpeg" "$APPDIR/usr/lib/$APP_NAME/ffmpeg"
   cp "$FFMPEG_STATIC_DIR/ffprobe" "$APPDIR/usr/lib/$APP_NAME/ffprobe"
 else
+  echo "Utilisation de FFmpeg systeme."
   cp "$(command -v ffmpeg)" "$APPDIR/usr/lib/$APP_NAME/ffmpeg"
   cp "$(command -v ffprobe)" "$APPDIR/usr/lib/$APP_NAME/ffprobe"
 fi
+chmod 755 "$APPDIR/usr/lib/$APP_NAME/ffmpeg" "$APPDIR/usr/lib/$APP_NAME/ffprobe"
 
 cp "$ROOT_DIR/packaging/youtube-downloader.desktop" "$APPDIR/usr/share/applications/$APP_NAME.desktop"
 cp "$ROOT_DIR/assets/youtube-logo.svg" "$APPDIR/usr/share/icons/hicolor/scalable/apps/$APP_NAME.svg"
