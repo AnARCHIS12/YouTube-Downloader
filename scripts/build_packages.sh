@@ -45,8 +45,24 @@ mkdir -p \
   "$APPDIR/usr/share/icons/hicolor/scalable/apps"
 
 cp "$DIST_DIR/$BIN_NAME" "$APPDIR/usr/lib/$APP_NAME/$BIN_NAME"
-cp "$(command -v ffmpeg)" "$APPDIR/usr/lib/$APP_NAME/ffmpeg"
-cp "$(command -v ffprobe)" "$APPDIR/usr/lib/$APP_NAME/ffprobe"
+
+FFMPEG_STATIC_DIR="$BUILD_DIR/ffmpeg_static"
+if [ ! -f "$FFMPEG_STATIC_DIR/ffmpeg" ] || [ ! -f "$FFMPEG_STATIC_DIR/ffprobe" ]; then
+  mkdir -p "$FFMPEG_STATIC_DIR"
+  echo "Tentative de telechargement de ffmpeg statique Linux..."
+  if curl -sSL "https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz" -o "$BUILD_DIR/ffmpeg.tar.xz" 2>/dev/null && [ -s "$BUILD_DIR/ffmpeg.tar.xz" ]; then
+    tar -xJf "$BUILD_DIR/ffmpeg.tar.xz" -C "$FFMPEG_STATIC_DIR" --strip-components=1 2>/dev/null || true
+  fi
+fi
+
+if [ -f "$FFMPEG_STATIC_DIR/ffmpeg" ] && [ -f "$FFMPEG_STATIC_DIR/ffprobe" ]; then
+  cp "$FFMPEG_STATIC_DIR/ffmpeg" "$APPDIR/usr/lib/$APP_NAME/ffmpeg"
+  cp "$FFMPEG_STATIC_DIR/ffprobe" "$APPDIR/usr/lib/$APP_NAME/ffprobe"
+else
+  cp "$(command -v ffmpeg)" "$APPDIR/usr/lib/$APP_NAME/ffmpeg"
+  cp "$(command -v ffprobe)" "$APPDIR/usr/lib/$APP_NAME/ffprobe"
+fi
+
 cp "$ROOT_DIR/packaging/youtube-downloader.desktop" "$APPDIR/usr/share/applications/$APP_NAME.desktop"
 cp "$ROOT_DIR/assets/youtube-logo.svg" "$APPDIR/usr/share/icons/hicolor/scalable/apps/$APP_NAME.svg"
 
@@ -88,6 +104,11 @@ tar -C "$RPM_TOP/SOURCES" -czf "$RPM_TOP/SOURCES/$APP_NAME-$VERSION.tar.gz" "$AP
 
 cat > "$RPM_TOP/SPECS/$APP_NAME.spec" <<EOF
 %global debug_package %{nil}
+%global __os_install_post %{nil}
+%global _use_internal_dependency_generator 0
+AutoReqProv: no
+AutoReq: no
+AutoProv: no
 
 Name:           $APP_NAME
 Version:        $VERSION
@@ -128,6 +149,7 @@ rpmbuild \
   --define "_tmppath $RPM_TMP" \
   -bb "$RPM_TOP/SPECS/$APP_NAME.spec"
 find "$RPM_TOP/RPMS" -type f -name "*.rpm" -exec cp {} "$PKG_DIR/" \;
+find "$RPM_TOP/RPMS" -type f -name "*.rpm" -exec cp {} "$PKG_DIR/${APP_NAME}-${VERSION}-1.${ARCH_RPM}.rpm" \; 2>/dev/null || true
 
 echo
 echo "Packages generated in: $PKG_DIR"
