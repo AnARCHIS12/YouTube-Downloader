@@ -33,13 +33,32 @@ def get_engine_dir():
     os.makedirs(path, exist_ok=True)
     return path
 
-def setup_engine_path():
-    """Ajoute le répertoire moteur utilisateur en tête de sys.path."""
+def setup_system_path():
+    """Ajoute les répertoires contenant ffmpeg et le moteur dans sys.path et os.environ['PATH']."""
     engine_dir = get_engine_dir()
+    exe_dir = os.path.dirname(sys.executable)
+
+    dirs_to_add = [
+        engine_dir,
+        "/usr/lib/youtube-downloader",
+        "/usr/local/bin",
+        "/usr/bin",
+        exe_dir,
+    ]
+
+    # sys.path
     if engine_dir not in sys.path:
         sys.path.insert(0, engine_dir)
 
-setup_engine_path()
+    # os.environ["PATH"]
+    current_path = os.environ.get("PATH", "")
+    path_parts = current_path.split(os.pathsep) if current_path else []
+    for d in reversed(dirs_to_add):
+        if d and os.path.isdir(d) and d not in path_parts:
+            path_parts.insert(0, d)
+    os.environ["PATH"] = os.pathsep.join(path_parts)
+
+setup_system_path()
 import yt_dlp
 
 # ==================== CONFIGURATION ====================
@@ -119,7 +138,7 @@ def reload_ytdlp_module():
     for name in modules_to_remove:
         del sys.modules[name]
 
-    setup_engine_path()
+    setup_system_path()
     import yt_dlp as reloaded_ytdlp
     yt_dlp = reloaded_ytdlp
     return yt_dlp
@@ -718,50 +737,71 @@ def telecharger_video(url, qualite, dossier_sortie):
             set_status("Fusion audio/vidéo", WARNING)
             set_detail("ffmpeg prépare le fichier final.")
 
-    ffmpeg_location = get_ffmpeg_location()
-
-    ydl_opts = {
-        "outtmpl": os.path.join(dossier_sortie, "%(title).200s.%(ext)s"),
-        "progress_hooks": [progress_hook],
-        "quiet": True,
-        "no_warnings": True,
-        "noplaylist": True,
-        "nocheckcertificate": True,
-    }
-
-    if ffmpeg_location:
-        ydl_opts["ffmpeg_location"] = ffmpeg_location
-        ydl_opts["format"] = f"bestvideo[height<={qualite}]+bestaudio/best[height<={qualite}]/best"
-        ydl_opts["merge_output_format"] = "mp4"
-    else:
-        # Sans FFmpeg : télécharger le meilleur flux combiné audio+vidéo sans étape de fusion requise
-        ydl_opts["format"] = f"best[height<={qualite}][ext=mp4]/best[height<={qualite}]/best"
-
     try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
-            filename = ydl.prepare_filename(info)
+        ffmpeg_location = get_ffmpeg_location()
 
-        if not filename.lower().endswith(".mp4"):
-            base, _ = os.path.splitext(filename)
-            mp4_filename = base + ".mp4"
-            if os.path.exists(mp4_filename):
-                filename = mp4_filename
+        ydl_opts = {
+            "outtmpl": os.path.join(dossier_sortie, "%(title).200s.%(ext)s"),
+            "progress_hooks": [progress_hook],
+            "quiet": True,
+            "no_warnings": True,
+            "noplaylist": True,
+            "nocheckcertificate": True,
+        }
 
-        safe_ui(progress_bar.set, 1.0)
-        set_status("Téléchargement terminé", SUCCESS)
-        set_detail(f"Enregistré : {os.path.basename(filename)}")
-        show_success(
-            "Téléchargement terminé",
-            f"Vidéo téléchargée avec succès !\n\n{os.path.basename(filename)}",
-            extra_btn_text="Ouvrir le dossier",
-            extra_btn_cmd=lambda: open_output_folder(dossier_sortie)
-        )
+        if ffmpeg_location:
+            ydl_opts["ffmpeg_location"] = ffmpeg_location
+            ydl_opts["format"] = f"bestvideo[height<={qualite}]+bestaudio/best[height<={qualite}]/best"
+            ydl_opts["merge_output_format"] = "mp4"
+        else:
+            # Sans FFmpeg : télécharger le meilleur flux combiné audio+vidéo sans étape de fusion requise
+            ydl_opts["format"] = f"best[height<={qualite}][ext=mp4]/best[height<={qualite}]/best"
 
-    except Exception as error:
-        set_status("Échec du téléchargement", ERROR)
-        set_detail("Consulte le message d'erreur pour le détail.")
-        show_error("Erreur de téléchargement", f"Échec :\n\n{explain_yt_dlp_error(error)}")
+        filename = None
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=True)
+                filename = ydl.prepare_filename(info)
+        except Exception as error:
+            err_str = str(error).lower()
+            if ("ffmpeg" in err_str or "merging" in err_str) and ydl_opts.get("merge_output_format"):
+                set_status("Téléchargement direct", WARNING)
+                set_detail("Nouvelle tentative avec flux direct sans fusion...")
+                fallback_opts = dict(ydl_opts)
+                fallback_opts["format"] = f"best[height<={qualite}][ext=mp4]/best[height<={qualite}]/best"
+                fallback_opts.pop("merge_output_format", None)
+                fallback_opts.pop("ffmpeg_location", None)
+                try:
+                    with yt_dlp.YoutubeDL(fallback_opts) as ydl:
+                        info = ydl.extract_info(url, download=True)
+                        filename = ydl.prepare_filename(info)
+                except Exception as inner_error:
+                    set_status("Échec du téléchargement", ERROR)
+                    set_detail("Consulte le message d'erreur pour le détail.")
+                    show_error("Erreur de téléchargement", f"Échec :\n\n{explain_yt_dlp_error(inner_error)}")
+                    return
+            else:
+                set_status("Échec du téléchargement", ERROR)
+                set_detail("Consulte le message d'erreur pour le détail.")
+                show_error("Erreur de téléchargement", f"Échec :\n\n{explain_yt_dlp_error(error)}")
+                return
+
+        if filename:
+            if not filename.lower().endswith(".mp4"):
+                base, _ = os.path.splitext(filename)
+                mp4_filename = base + ".mp4"
+                if os.path.exists(mp4_filename):
+                    filename = mp4_filename
+
+            safe_ui(progress_bar.set, 1.0)
+            set_status("Téléchargement terminé", SUCCESS)
+            set_detail(f"Enregistré : {os.path.basename(filename)}")
+            show_success(
+                "Téléchargement terminé",
+                f"Vidéo téléchargée avec succès !\n\n{os.path.basename(filename)}",
+                extra_btn_text="Ouvrir le dossier",
+                extra_btn_cmd=lambda: open_output_folder(dossier_sortie)
+            )
 
     finally:
         safe_ui(bouton_telecharger.configure, state="normal", text="Télécharger")

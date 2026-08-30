@@ -77,6 +77,7 @@ cp "$ROOT_DIR/assets/youtube-logo.svg" "$APPDIR/usr/share/icons/hicolor/scalable
 
 cat > "$APPDIR/usr/bin/$APP_NAME" <<EOF
 #!/usr/bin/env bash
+export PATH="/usr/lib/$APP_NAME:\$PATH"
 exec /usr/lib/$APP_NAME/$BIN_NAME "\$@"
 EOF
 chmod 755 \
